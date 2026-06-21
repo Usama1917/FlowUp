@@ -4,6 +4,7 @@ import { ClipboardList, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useApp } from '@/contexts/AppContext';
 import { getTranslations } from '@/i18n/translations';
+import { formatTime12 } from '@/data/mockData';
 
 const ACTION_TYPES_AR = ['إرسال مهمة', 'تغيير حالة', 'تسليم عمل', 'طلب تعديل', 'اعتماد', 'إنشاء قسم', 'إضافة عضو', 'تعديل صلاحيات'];
 const ACTION_TYPES_EN = ['Task Sent', 'Status Changed', 'Work Submitted', 'Revision Requested', 'Approved', 'Department Created', 'Member Added', 'Permissions Updated'];
@@ -133,7 +134,7 @@ export function AuditLogPage() {
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badgeClass}`}>{actionLabel}</span>
                         </div>
                         <span className="text-xs text-muted-foreground flex-shrink-0 ltr-value">
-                          {log.timestamp.toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                          {log.timestamp.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' })} {formatTime12(log.timestamp, lang)}
                         </span>
                       </div>
                       <p className="text-xs text-foreground mb-1.5">{lang === 'ar' ? log.details : log.detailsEn}</p>

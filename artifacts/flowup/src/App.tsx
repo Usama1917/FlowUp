@@ -33,7 +33,7 @@ function AppShell() {
   return (
     <div className="min-h-screen bg-background relative">
       <FloatingNav />
-      <div className="pt-20 pb-4 h-screen overflow-hidden">
+      <div className="pb-4 h-screen overflow-hidden">
         <Router />
       </div>
       <RoleSwitcher />

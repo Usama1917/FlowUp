@@ -3,6 +3,7 @@ import { BarChart3, CheckCircle2, Clock, AlertCircle, RotateCcw, MessageSquare, 
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useApp } from '@/contexts/AppContext';
 import { getTranslations } from '@/i18n/translations';
+import { formatTime12 } from '@/data/mockData';
 
 const cardVariants = {
   hidden: { opacity: 0, y: 16 },
@@ -165,7 +166,7 @@ export function DashboardPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-foreground leading-snug">{lang === 'ar' ? log.details : log.detailsEn}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{log.timestamp.toLocaleTimeString(lang === 'ar' ? 'ar-SA' : 'en-GB', { hour: '2-digit', minute: '2-digit' })}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{formatTime12(log.timestamp, lang)}</p>
                   </div>
                   <span className="text-xs bg-muted px-1.5 py-0.5 rounded-lg text-muted-foreground flex-shrink-0">{lang === 'ar' ? log.action : log.actionEn}</span>
                 </div>

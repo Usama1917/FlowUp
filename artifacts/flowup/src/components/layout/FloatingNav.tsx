@@ -14,15 +14,22 @@ const navItems = [
   { key: 'settings',  path: '/settings',  icon: SlidersHorizontal,labelKey: 'navSettings' as const },
 ];
 
+// The designer has a focused workspace — no admin/dashboard/audit in the top bar.
+const DESIGNER_HIDDEN = ['admin', 'dashboard', 'audit'];
+
 export function FloatingNav() {
   const [location, navigate] = useLocation();
-  const { lang } = useApp();
+  const { lang, currentRole } = useApp();
   const tr = getTranslations(lang);
 
   const isActive = (path: string) => {
     if (path === '/') return location === '/';
     return location.startsWith(path);
   };
+
+  const visibleNavItems = currentRole === 'designer'
+    ? navItems.filter(item => !DESIGNER_HIDDEN.includes(item.key))
+    : navItems;
 
   return (
     <div className="fixed top-4 left-0 right-0 z-50 flex justify-center pointer-events-none">
@@ -33,7 +40,7 @@ export function FloatingNav() {
         className="pointer-events-auto flex items-center gap-1 bg-white/90 dark:bg-card/90 backdrop-blur-xl border border-border/60 shadow-lg rounded-full px-3 py-2"
         style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06)' }}
       >
-        {navItems.map(item => {
+        {visibleNavItems.map(item => {
           const active = isActive(item.path);
           const Icon = item.icon;
           return (

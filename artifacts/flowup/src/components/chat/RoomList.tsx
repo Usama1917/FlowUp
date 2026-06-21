@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Layers, Check } from 'lucide-react';
+import { Search, Layers, Check, BookMarked, Plus, Pin, LayoutGrid, BookCopy, User } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useApp } from '@/contexts/AppContext';
 import { getTranslations } from '@/i18n/translations';
+import { getRoomDisplayName } from '@/data/mockData';
+import { highlightText } from '@/lib/highlight';
 import type { Room } from '@/data/mockData';
 
 type Filter = 'all' | 'unread' | 'active' | 'overdue';
@@ -30,20 +32,26 @@ function formatRelativeTime(date: Date, lang: string) {
 }
 
 export function RoomList({ onRoomSelect }: RoomListProps) {
-  const { lang, allRooms, allTasks, allDepartments, selectedRoomId, setSelectedRoomId } = useApp();
+  const { lang, currentUser, currentRole, allRooms, allTasks, allMessages, allUsers, allSubjects, allDepartments, selectedRoomId, setSelectedRoomId, setChatSearch, setJumpMessageId, sciViewMode, setSciViewMode, startDirectChat } = useApp();
   const tr = getTranslations(lang);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null);
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [deptOpen, setDeptOpen] = useState(false);
+  const [subjOpen, setSubjOpen] = useState(false);
+  const [privOpen, setPrivOpen] = useState(false);
   const deptRef = useRef<HTMLDivElement>(null);
+  const subjRef = useRef<HTMLDivElement>(null);
+  const privRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (deptRef.current && !deptRef.current.contains(e.target as Node)) {
-        setDeptOpen(false);
-      }
+      const t = e.target as Node;
+      if (deptRef.current && !deptRef.current.contains(t)) setDeptOpen(false);
+      if (subjRef.current && !subjRef.current.contains(t)) setSubjOpen(false);
+      if (privRef.current && !privRef.current.contains(t)) setPrivOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -56,29 +64,103 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
     { key: 'overdue', label: tr.overdue },
   ];
 
+  const isSciSup = currentRole === 'scientific_supervisor';
+  const isOversight = currentRole === 'manager' || currentRole === 'design_supervisor';
+  // The designer is locked to subject group chats only — no other groups, no private chats.
+  const isDesigner = currentRole === 'designer';
+
   const activeDepts = allDepartments.filter(d => d.active);
   const selectedDept = activeDepts.find(d => d.id === selectedDeptId);
 
-  const filteredRooms = allRooms.filter(room => {
-    const name = lang === 'ar' ? room.name : room.nameEn;
-    const matchSearch = !search || name.toLowerCase().includes(search.toLowerCase());
+  // Subjects this scientific supervisor actually works on: matched by ERPNext code AND
+  // having a live subject chat (a designer assigned). A subject with no chat doesn't count,
+  // so the "موادي" filter only shows when there's genuinely more than one subject to switch between.
+  const mySubjects = isSciSup
+    ? allSubjects.filter(s =>
+        s.scientificSupervisorCode === currentUser.employeeCode &&
+        allRooms.some(r => r.type === 'subject' && r.subjectId === s.id && r.participantIds.includes(currentUser.id)))
+    : [];
+  const selectedSubject = mySubjects.find(s => s.id === selectedSubjectId);
+
+  const roomIsOverdue = (roomId: string) =>
+    allTasks.some(t => t.roomId === roomId && (t.status === 'overdue' || (t.deadline < new Date() && !['approved', 'closed'].includes(t.status))));
+
+  // Only the chats the current user is part of, with per-role scoping:
+  //  - designer: subject chats + their read-only feed
+  //  - scientific supervisor: subject chats only (no manual groups); direct chats kept
+  //    so a manager/design-supervisor-initiated DM still reaches them
+  const myRooms = allRooms.filter(r => {
+    if (!r.participantIds.includes(currentUser.id)) return false;
+    if (isDesigner) return r.type === 'subject' || r.type === 'feed';
+    if (isSciSup) {
+      // 'subject' view → one chat per subject×designer; 'designer' view → one merged chat per designer.
+      const subjectKind = sciViewMode === 'designer' ? r.type === 'subject_merge' : r.type === 'subject';
+      return subjectKind || r.type === 'direct';
+    }
+    return true;
+  });
+
+  // Keep the selection valid for the current user (e.g. after switching role)
+  useEffect(() => {
+    if (selectedRoomId && myRooms.length > 0 && !myRooms.some(r => r.id === selectedRoomId)) {
+      setSelectedRoomId(myRooms[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser.id, selectedRoomId, myRooms.length]);
+
+  // Search matches the room name OR any message content inside it (both languages),
+  // plus the seed last-message preview for rooms that have no message objects yet.
+  const roomMatchesSearch = (room: Room, q: string) => {
+    const display = getRoomDisplayName(room, currentUser, lang, allUsers, allSubjects);
+    if (display.toLowerCase().includes(q)) return true;
+    if (room.lastMessage?.toLowerCase().includes(q) || room.lastMessageEn?.toLowerCase().includes(q)) return true;
+    return allMessages.some(m => m.roomId === room.id && (
+      m.text?.toLowerCase().includes(q) || m.textEn?.toLowerCase().includes(q)
+    ));
+  };
+
+  const filteredRooms = myRooms.filter(room => {
+    const matchSearch = !search || roomMatchesSearch(room, search.toLowerCase());
     const matchDept = !selectedDeptId || room.departmentId === selectedDeptId;
+    const matchSubject = !selectedSubjectId || room.subjectId === selectedSubjectId;
     const matchFilter =
       filter === 'all' ? true :
       filter === 'unread' ? room.unreadCount > 0 :
       filter === 'active' ? room.activeTaskCount > 0 :
-      filter === 'overdue' ? allTasks.some(t => t.roomId === room.id && (t.status === 'overdue' || (t.deadline < new Date() && !['approved', 'closed'].includes(t.status)))) : true;
-    return matchSearch && matchDept && matchFilter;
+      filter === 'overdue' ? roomIsOverdue(room.id) : true;
+    return matchSearch && matchDept && matchSubject && matchFilter;
   });
 
-  const handleSelect = (roomId: string) => {
+  const sections = [
+    { key: 'subjects', label: tr.subjects, rooms: filteredRooms.filter(r => r.type === 'subject' || r.type === 'subject_merge') },
+    { key: 'groups', label: tr.sectionGroups, rooms: filteredRooms.filter(r => r.type === 'group' || r.type === 'dept_room' || r.type === 'task_room') },
+    { key: 'direct', label: tr.sectionPrivate, rooms: filteredRooms.filter(r => r.type === 'direct') },
+  ].filter(s => s.rooms.length > 0);
+
+  // The designer's read-only aggregate feed — pinned at the very top, always.
+  const feedRoom = myRooms.find(r => r.type === 'feed');
+
+  // Opening a room carries the current search term into the chat (highlight + navigate),
+  // and jumps to the specific matched message when the result was clicked from search.
+  const handleSelect = (roomId: string, jumpMsgId?: string) => {
     setSelectedRoomId(roomId);
+    setChatSearch(search.trim());
+    setJumpMessageId(jumpMsgId ?? null);
     onRoomSelect?.(roomId);
+  };
+
+  const handleStartPrivate = (otherId: string) => {
+    const rid = startDirectChat(otherId);
+    setSelectedRoomId(rid);
+    setChatSearch('');
+    setJumpMessageId(null);
+    onRoomSelect?.(rid);
+    setPrivOpen(false);
   };
 
   return (
     <div className="flex flex-col h-full bg-card border-e border-border">
-      {/* Search + Dept button row */}
+      {/* Search + role-aware filter */}
       <div className="px-3 pt-3 pb-2">
         <div className="flex items-center gap-2">
           {/* Search */}
@@ -93,67 +175,142 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
             />
           </div>
 
-          {/* Dept filter button */}
-          <div ref={deptRef} className="relative flex-shrink-0">
+          {/* Oversight roles → department filter */}
+          {isOversight && (
+            <div ref={deptRef} className="relative flex-shrink-0">
+              <motion.button
+                whileTap={{ scale: 0.94 }}
+                onClick={() => setDeptOpen(v => !v)}
+                data-testid="dept-filter-btn"
+                className={`flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-colors duration-150 border ${
+                  selectedDeptId ? 'bg-secondary text-white border-secondary' : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                <Layers size={13} />
+                {selectedDept
+                  ? <span className="max-w-[60px] truncate">{lang === 'ar' ? selectedDept.name : selectedDept.nameEn}</span>
+                  : <span>{tr.all}</span>}
+              </motion.button>
+              <AnimatePresence>
+                {deptOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full mt-1.5 end-0 z-50 bg-card border border-border rounded-2xl shadow-xl overflow-hidden min-w-[180px]"
+                  >
+                    <button
+                      onClick={() => { setSelectedDeptId(null); setDeptOpen(false); }}
+                      className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm transition-colors hover:bg-muted/60 ${!selectedDeptId ? 'text-secondary font-medium' : 'text-foreground'}`}
+                    >
+                      <span>{tr.all}</span>
+                      {!selectedDeptId && <Check size={13} className="text-secondary" />}
+                    </button>
+                    <div className="h-px bg-border mx-2" />
+                    {activeDepts.map(dept => (
+                      <button
+                        key={dept.id}
+                        onClick={() => { setSelectedDeptId(selectedDeptId === dept.id ? null : dept.id); setDeptOpen(false); }}
+                        className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm transition-colors hover:bg-muted/60 ${selectedDeptId === dept.id ? 'text-secondary font-medium' : 'text-foreground'}`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xs font-mono text-muted-foreground ltr-value">{dept.code}</span>
+                          <span className="truncate">{lang === 'ar' ? dept.name : dept.nameEn}</span>
+                        </div>
+                        {selectedDeptId === dept.id && <Check size={13} className="text-secondary flex-shrink-0" />}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Scientific supervisor with >1 subject → toggle: group chats by subject vs by designer */}
+          {isSciSup && mySubjects.length > 1 && (
             <motion.button
               whileTap={{ scale: 0.94 }}
-              onClick={() => setDeptOpen(v => !v)}
-              data-testid="dept-filter-btn"
-              className={`flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-colors duration-150 border ${
-                selectedDeptId
-                  ? 'bg-secondary text-white border-secondary'
-                  : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground'
-              }`}
+              onClick={() => setSciViewMode(sciViewMode === 'subject' ? 'designer' : 'subject')}
+              data-testid="sci-view-toggle"
+              title={sciViewMode === 'subject'
+                ? (lang === 'ar' ? 'العرض: حسب المادة — اضغط للعرض حسب المصمم' : 'View: by subject — tap for by designer')
+                : (lang === 'ar' ? 'العرض: حسب المصمم — اضغط للعرض حسب المادة' : 'View: by designer — tap for by subject')}
+              className="flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-xl bg-muted/50 text-muted-foreground border border-transparent hover:bg-muted hover:text-foreground transition-colors duration-150"
             >
-              <Layers size={13} />
-              {selectedDept
-                ? <span className="max-w-[60px] truncate">{lang === 'ar' ? selectedDept.name : selectedDept.nameEn}</span>
-                : <span>{tr.all}</span>
-              }
+              {sciViewMode === 'subject' ? <BookCopy size={15} /> : <User size={15} />}
             </motion.button>
+          )}
 
-            {/* Floating dropdown */}
-            <AnimatePresence>
-              {deptOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute top-full mt-1.5 end-0 z-50 bg-card border border-border rounded-2xl shadow-xl overflow-hidden min-w-[180px]"
+          {/* "موادي" filter (subject view only). Animating its real WIDTH makes the flex row
+              reflow every frame, so the search field grows and the toggle slides left in lockstep. */}
+          <AnimatePresence initial={false}>
+          {isSciSup && mySubjects.length > 1 && sciViewMode === 'subject' && (
+            <motion.div
+              key="my-subjects-filter"
+              ref={subjRef}
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'auto', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              className="relative flex-shrink-0"
+            >
+              {/* inner clip so the button is cut as the width collapses — but NOT the dropdown */}
+              <div className="overflow-hidden">
+                <motion.button
+                  whileTap={{ scale: 0.94 }}
+                  onClick={() => setSubjOpen(v => !v)}
+                  data-testid="my-subjects-btn"
+                  className={`flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium whitespace-nowrap transition-colors duration-150 border ${
+                    selectedSubjectId ? 'bg-secondary text-white border-secondary' : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground'
+                  }`}
                 >
-                  {/* All option */}
-                  <button
-                    onClick={() => { setSelectedDeptId(null); setDeptOpen(false); }}
-                    className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm transition-colors hover:bg-muted/60 ${!selectedDeptId ? 'text-secondary font-medium' : 'text-foreground'}`}
-                    data-testid="dept-option-all"
+                  <BookMarked size={13} className="flex-shrink-0" />
+                  {selectedSubject
+                    ? <span className="max-w-[64px] truncate">{selectedSubject.name}</span>
+                    : <span>{tr.mySubjectsFilter}</span>}
+                </motion.button>
+              </div>
+              <AnimatePresence>
+                {subjOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full mt-1.5 end-0 z-50 bg-card border border-border rounded-2xl shadow-xl overflow-hidden min-w-[200px]"
                   >
-                    <span>{tr.all}</span>
-                    {!selectedDeptId && <Check size={13} className="text-secondary" />}
-                  </button>
-                  <div className="h-px bg-border mx-2" />
-                  {activeDepts.map(dept => (
                     <button
-                      key={dept.id}
-                      onClick={() => { setSelectedDeptId(selectedDeptId === dept.id ? null : dept.id); setDeptOpen(false); }}
-                      className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm transition-colors hover:bg-muted/60 ${selectedDeptId === dept.id ? 'text-secondary font-medium' : 'text-foreground'}`}
-                      data-testid={`dept-option-${dept.id}`}
+                      onClick={() => { setSelectedSubjectId(null); setSubjOpen(false); }}
+                      className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm transition-colors hover:bg-muted/60 ${!selectedSubjectId ? 'text-secondary font-medium' : 'text-foreground'}`}
                     >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-xs font-mono text-muted-foreground ltr-value">{dept.code}</span>
-                        <span className="truncate">{lang === 'ar' ? dept.name : dept.nameEn}</span>
-                      </div>
-                      {selectedDeptId === dept.id && <Check size={13} className="text-secondary flex-shrink-0" />}
+                      <span>{tr.all}</span>
+                      {!selectedSubjectId && <Check size={13} className="text-secondary" />}
                     </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                    <div className="h-px bg-border mx-2" />
+                    {mySubjects.map(subject => (
+                      <button
+                        key={subject.id}
+                        onClick={() => { setSelectedSubjectId(selectedSubjectId === subject.id ? null : subject.id); setSubjOpen(false); }}
+                        className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm transition-colors hover:bg-muted/60 ${selectedSubjectId === subject.id ? 'text-secondary font-medium' : 'text-foreground'}`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: subject.color }} />
+                          <span className="truncate">{subject.name}</span>
+                        </div>
+                        {selectedSubjectId === subject.id && <Check size={13} className="text-secondary flex-shrink-0" />}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+          </AnimatePresence>
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Status filters */}
       <div className="flex gap-1 px-3 pb-2">
         {filters.map(f => (
           <motion.button
@@ -167,76 +324,177 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
         ))}
       </div>
 
-      {/* Room list */}
-      <div className="flex-1 overflow-y-auto scrollbar-none border-t border-border/50">
+      {/* New private chat — only the oversight roles (manager / design supervisor).
+          The designer is locked to subject groups; the scientific supervisor talks
+          to designers only inside their subject rooms, never in a private chat. */}
+      {isOversight && (
+      <div ref={privRef} className="px-3 pb-2 relative">
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={() => setPrivOpen(v => !v)}
+          data-testid="new-private-chat-btn"
+          className="w-full flex items-center justify-center gap-1.5 h-8 rounded-xl text-xs font-medium bg-secondary/10 text-secondary hover:bg-secondary/20 transition-colors"
+        >
+          <Plus size={13} />
+          {tr.newPrivateChat}
+        </motion.button>
         <AnimatePresence>
-          {filteredRooms.length === 0 ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-12 text-center px-4">
-              <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mb-3">
-                <Search size={20} className="text-muted-foreground" />
-              </div>
-              <p className="text-sm font-medium text-foreground">{tr.noRooms}</p>
-              <p className="text-xs text-muted-foreground mt-1">{tr.noRoomsDesc}</p>
+          {privOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -6, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.97 }}
+              transition={{ duration: 0.15 }}
+              className="absolute top-full mt-1.5 inset-x-3 z-50 bg-card border border-border rounded-2xl shadow-xl overflow-hidden max-h-72 overflow-y-auto scrollbar-none"
+            >
+              {allUsers.filter(u => u.id !== currentUser.id && u.role !== 'designer').map((u, i) => (
+                <button
+                  key={u.id}
+                  onClick={() => handleStartPrivate(u.id)}
+                  data-testid={`start-private-${u.id}`}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-start transition-colors hover:bg-muted/60"
+                >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 ${avatarColors[i % avatarColors.length]}`}>
+                    {u.avatar}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{lang === 'ar' ? u.name : u.nameEn}</p>
+                    <p className="text-xs text-muted-foreground truncate ltr-value">{u.employeeCode}</p>
+                  </div>
+                </button>
+              ))}
             </motion.div>
-          ) : (
-            filteredRooms.map((room, idx) => (
-              <RoomItem
-                key={room.id}
-                room={room}
-                isSelected={room.id === selectedRoomId}
-                onSelect={handleSelect}
-                index={idx}
-              />
-            ))
           )}
         </AnimatePresence>
+      </div>
+      )}
+
+      {/* Chat list (grouped by section) */}
+      <div className="flex-1 overflow-y-auto scrollbar-none border-t border-border/50">
+        {/* Pinned read-only feed (designer only) */}
+        {feedRoom && (
+          <button
+            onClick={() => handleSelect(feedRoom.id)}
+            data-testid="feed-room"
+            className={`w-full flex items-center gap-3 px-3 py-3 text-start border-b border-border/60 transition-colors ${selectedRoomId === feedRoom.id ? 'bg-secondary/10 border-s-2 border-s-secondary' : 'hover:bg-muted/50'}`}
+          >
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white flex-shrink-0">
+              <LayoutGrid size={18} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <Pin size={11} className="text-secondary flex-shrink-0" />
+                <p className={`text-sm font-semibold truncate ${selectedRoomId === feedRoom.id ? 'text-secondary' : 'text-foreground'}`}>
+                  {getRoomDisplayName(feedRoom, currentUser, lang, allUsers, allSubjects)}
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground truncate mt-0.5">{lang === 'ar' ? 'كل رسائل موادك — للقراءة فقط' : 'All your subjects — read-only'}</p>
+            </div>
+          </button>
+        )}
+        {sections.length === 0 && !feedRoom ? (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-12 text-center px-4">
+            <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mb-3">
+              <Search size={20} className="text-muted-foreground" />
+            </div>
+            <p className="text-sm font-medium text-foreground">{tr.noRooms}</p>
+            <p className="text-xs text-muted-foreground mt-1">{tr.noRoomsDesc}</p>
+          </motion.div>
+        ) : (
+          sections.map(sec => (
+            <div key={sec.key}>
+              <p className="px-3 pt-3 pb-1 text-xs font-semibold text-muted-foreground/70">{sec.label}</p>
+              {sec.rooms.map((room, idx) => (
+                <RoomItem
+                  key={room.id}
+                  room={room}
+                  isSelected={room.id === selectedRoomId}
+                  onSelect={handleSelect}
+                  index={idx}
+                  searchTerm={search}
+                />
+              ))}
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
 }
 
-function RoomItem({ room, isSelected, onSelect, index }: { room: Room; isSelected: boolean; onSelect: (id: string) => void; index: number }) {
-  const { lang, allTasks } = useApp();
+function RoomItem({ room, isSelected, onSelect, index, searchTerm }: { room: Room; isSelected: boolean; onSelect: (id: string, jumpMsgId?: string) => void; index: number; searchTerm: string }) {
+  const { lang, currentUser, allUsers, allSubjects, allTasks, allMessages } = useApp();
+  const displayName = getRoomDisplayName(room, currentUser, lang, allUsers, allSubjects);
   const overdueCount = allTasks.filter(t => t.roomId === room.id && t.deadline < new Date() && !['approved', 'closed'].includes(t.status)).length;
+
+  const subject = room.subjectId ? allSubjects.find(s => s.id === room.subjectId) : null;
+
+  // A merged "by designer" room has no messages of its own — it aggregates the designer's
+  // subject chats, so match/preview against that set of room ids.
+  const roomIds = room.type === 'subject_merge'
+    ? new Set((room.subjectIds ?? []).map(sid => `asg_${sid}_${room.designerId}`))
+    : new Set([room.id]);
+
+  // Last activity for preview/time — derived from real messages, falling back to the seed
+  let lastMsg = null as (typeof allMessages)[number] | null;
+  for (let i = allMessages.length - 1; i >= 0; i--) {
+    if (roomIds.has(allMessages[i].roomId)) { lastMsg = allMessages[i]; break; }
+  }
+
+  // While searching, surface the most recent message in this room that matches the term
+  // (Telegram-style) so the preview shows *why* the room matched, and clicking jumps to it.
+  const q = searchTerm.trim().toLowerCase();
+  let matchMsg = null as (typeof allMessages)[number] | null;
+  if (q) {
+    for (let i = allMessages.length - 1; i >= 0; i--) {
+      const m = allMessages[i];
+      if (!roomIds.has(m.roomId)) continue;
+      const txt = (lang === 'ar' ? m.text : m.textEn) || '';
+      if (txt.toLowerCase().includes(q)) { matchMsg = m; break; }
+    }
+  }
+
+  const hasActivity = !!lastMsg || !!room.lastMessage;
+  const previewText = matchMsg
+    ? (lang === 'ar' ? matchMsg.text : matchMsg.textEn)
+    : lastMsg ? (lang === 'ar' ? lastMsg.text : lastMsg.textEn) : (room.lastMessage ? (lang === 'ar' ? room.lastMessage : room.lastMessageEn) : '');
+  const preview = matchMsg ? highlightText(previewText, searchTerm) : previewText;
+  const time = matchMsg ? matchMsg.timestamp : lastMsg ? lastMsg.timestamp : room.lastMessageTime;
 
   return (
     <motion.button
       initial={{ opacity: 0, x: lang === 'ar' ? 10 : -10 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.05 }}
-      whileHover={{ backgroundColor: 'var(--elevate-1)' }}
-      onClick={() => onSelect(room.id)}
+      transition={{ delay: index * 0.04 }}
+      onClick={() => onSelect(room.id, matchMsg?.id)}
       data-testid={`room-item-${room.id}`}
-      className={`w-full flex items-start gap-3 px-3 py-3 transition-colors duration-150 text-start border-b border-border/40 ${isSelected ? 'bg-secondary/8 border-s-2 border-s-secondary' : ''}`}
+      className={`w-full flex items-start gap-3 px-3 py-3 transition-colors duration-150 text-start border-b border-border/40 ${isSelected ? 'bg-secondary/10 border-s-2 border-s-secondary' : 'hover:bg-muted/40'}`}
     >
-      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${avatarColors[index % avatarColors.length]}`}>
-        {(lang === 'ar' ? room.name : room.nameEn).charAt(0)}
+      <div
+        className={`w-10 h-10 rounded-2xl flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${subject ? '' : avatarColors[index % avatarColors.length]}`}
+        style={subject ? { backgroundColor: subject.color } : undefined}
+      >
+        {displayName.charAt(0)}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-1">
           <p className={`text-sm font-semibold truncate ${isSelected ? 'text-secondary' : 'text-foreground'}`}>
-            {lang === 'ar' ? room.name : room.nameEn}
+            {displayName}
           </p>
-          <span className="text-xs text-muted-foreground flex-shrink-0">{formatRelativeTime(room.lastMessageTime, lang)}</span>
+          {hasActivity && <span className="text-xs text-muted-foreground flex-shrink-0">{formatRelativeTime(time, lang)}</span>}
         </div>
         <p className="text-xs text-muted-foreground truncate mt-0.5">
-          {lang === 'ar' ? room.lastMessage : room.lastMessageEn}
+          {preview || (lang === 'ar' ? 'لا رسائل بعد' : 'No messages yet')}
         </p>
         <div className="flex items-center gap-2 mt-1">
           {room.activeTaskCount > 0 && (
-            <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-md font-medium">
-              {room.activeTaskCount}
-            </span>
+            <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-md font-medium">{room.activeTaskCount}</span>
           )}
           {overdueCount > 0 && (
-            <span className="text-xs bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded-md font-medium">
-              !
-            </span>
+            <span className="text-xs bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded-md font-medium">!</span>
           )}
           {room.unreadCount > 0 && (
-            <span className="ms-auto text-xs bg-secondary text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 font-medium">
-              {room.unreadCount}
-            </span>
+            <span className="ms-auto text-xs bg-secondary text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 font-medium">{room.unreadCount}</span>
           )}
         </div>
       </div>

@@ -3,6 +3,18 @@
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 
+/* System font — SF Arabic (covers Arabic + Latin). Only a Regular weight ships,
+   so bolder weights are synthesized by the browser. */
+@font-face {
+  font-family: 'SF Arabic';
+  src: local('SF Arabic'), local('SFArabic-Regular'),
+    url('./assets/fonts/SFArabic-Regular.woff2') format('woff2'),
+    url('./assets/fonts/SFArabic-Regular.woff') format('woff');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -98,7 +110,7 @@
   --chart-4: 38 92% 50%;
   --chart-5: 350 89% 58%;
 
-  --app-font-sans: 'Inter', 'Noto Sans Arabic', sans-serif;
+  --app-font-sans: 'SF Arabic', 'Inter', 'Noto Sans Arabic', sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: Menlo, monospace;
   --radius: .625rem;
@@ -180,11 +192,11 @@
 }
 
 [dir="rtl"] body, [dir="rtl"] .font-sans {
-  font-family: 'Noto Sans Arabic', 'Inter', sans-serif;
+  font-family: 'SF Arabic', 'Noto Sans Arabic', 'Inter', sans-serif;
 }
 
 [dir="ltr"] body, [dir="ltr"] .font-sans {
-  font-family: 'Inter', 'Noto Sans Arabic', sans-serif;
+  font-family: 'SF Arabic', 'Inter', 'Noto Sans Arabic', sans-serif;
 }
 
 .ltr-value {

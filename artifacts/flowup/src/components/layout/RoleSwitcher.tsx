@@ -4,8 +4,15 @@ import { ChevronUp, UserCircle2, Check } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { getTranslations } from '@/i18n/translations';
 import { users } from '@/data/mockData';
+import type { User, UserRole } from '@/data/mockData';
 
 const avatarColors = ['bg-primary', 'bg-secondary', 'bg-green-500', 'bg-amber-500', 'bg-rose-500', 'bg-purple-600'];
+
+// Show exactly 4 roles in the switcher (one representative user per role), in this order.
+const ROLE_ORDER: UserRole[] = ['designer', 'scientific_supervisor', 'design_supervisor', 'manager'];
+const roleUsers: User[] = ROLE_ORDER
+  .map((role) => users.find((u) => u.role === role))
+  .filter((u): u is User => Boolean(u));
 
 export function RoleSwitcher() {
   const [open, setOpen] = useState(false);
@@ -23,7 +30,7 @@ export function RoleSwitcher() {
   };
 
   return (
-    <div className="fixed bottom-5 end-5 z-50">
+    <div className="fixed bottom-5 right-5 z-50">
       <AnimatePresence>
         {open && (
           <motion.div
@@ -31,32 +38,35 @@ export function RoleSwitcher() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="absolute bottom-full mb-2 end-0 w-60 bg-card border border-border rounded-2xl shadow-xl overflow-hidden"
+            className="absolute bottom-full mb-2 right-0 w-60 bg-card border border-border rounded-2xl shadow-xl overflow-hidden"
           >
             <div className="px-3 py-2.5 border-b border-border bg-muted/50">
               <p className="text-xs font-medium text-muted-foreground">{tr.switchRole}</p>
             </div>
             <div className="p-1.5">
-              {users.map((u, i) => (
-                <motion.button
-                  key={u.id}
-                  whileHover={{ x: lang === 'ar' ? -3 : 3 }}
-                  onClick={() => { setCurrentUserId(u.id); setOpen(false); }}
-                  data-testid={`role-option-${u.id}`}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-colors duration-150 ${currentUser.id === u.id ? 'bg-secondary/10' : 'hover:bg-muted/70'}`}
-                >
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 ${avatarColors[i % avatarColors.length]}`}>
-                    {u.avatar}
-                  </div>
-                  <div className="flex-1 text-start min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{lang === 'ar' ? u.name : u.nameEn}</p>
-                    <p className="text-xs text-muted-foreground truncate">{roleLabel(u.role)}</p>
-                  </div>
-                  {currentUser.id === u.id && (
-                    <Check size={14} className="text-secondary flex-shrink-0" />
-                  )}
-                </motion.button>
-              ))}
+              {roleUsers.map((u, i) => {
+                const isCurrent = currentUser.role === u.role;
+                return (
+                  <motion.button
+                    key={u.role}
+                    whileHover={{ x: lang === 'ar' ? -3 : 3 }}
+                    onClick={() => { setCurrentUserId(u.id); setOpen(false); }}
+                    data-testid={`role-option-${u.role}`}
+                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-colors duration-150 ${isCurrent ? 'bg-secondary/10' : 'hover:bg-muted/70'}`}
+                  >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 ${avatarColors[i % avatarColors.length]}`}>
+                      {u.avatar}
+                    </div>
+                    <div className="flex-1 text-start min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{roleLabel(u.role)}</p>
+                      <p className="text-xs text-muted-foreground truncate">{lang === 'ar' ? u.name : u.nameEn}</p>
+                    </div>
+                    {isCurrent && (
+                      <Check size={14} className="text-secondary flex-shrink-0" />
+                    )}
+                  </motion.button>
+                );
+              })}
             </div>
           </motion.div>
         )}

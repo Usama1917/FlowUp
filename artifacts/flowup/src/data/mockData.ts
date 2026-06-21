@@ -6,8 +6,9 @@ export interface User {
   nameEn: string;
   role: UserRole;
   email: string;
+  employeeCode: string;   // كود الموظف من ERPNext
   avatar: string;
-  department: string;
+  department: string;     // department id
 }
 
 export interface Department {
@@ -22,12 +23,28 @@ export interface Department {
   active: boolean;
 }
 
+// A "Subject" (مادة) — each subject becomes a chat/room the designer sees.
+// Managed by the Design Dept. Supervisor or the Manager from the Admin page.
+export interface Subject {
+  id: string;
+  name: string;                      // اسم المادة
+  color: string;                     // لون المادة (hex)
+  item: string;                      // الايتم المختار من ايتمز السستم (ERPNext Item later)
+  project: string;                   // البروجيكت
+  scientificSupervisorCode: string;  // كود المشرف العلمي من ERPNext
+  designerIds: string[];             // المصممون المسؤولون عن المادة (ممكن أكتر من واحد)
+  active: boolean;
+}
+
 export interface Room {
   id: string;
   name: string;
   nameEn: string;
   departmentId: string;
-  type: 'group' | 'direct' | 'task_room' | 'dept_room';
+  type: 'group' | 'direct' | 'task_room' | 'dept_room' | 'subject' | 'feed' | 'subject_merge';
+  subjectId?: string;   // for subject-assignment chats — which subject
+  subjectIds?: string[]; // for subject_merge — every subject this merged designer chat aggregates
+  designerId?: string;  // for subject-assignment chats, feed & subject_merge — the designer it belongs to
   participantIds: string[];
   lastMessage: string;
   lastMessageEn: string;
@@ -100,12 +117,18 @@ const daysAgo = (d: number) => new Date(now.getTime() - d * 24 * 60 * 60 * 1000)
 const daysFromNow = (d: number) => new Date(now.getTime() + d * 24 * 60 * 60 * 1000);
 
 export const users: User[] = [
-  { id: 'u1', name: 'سارة خالد', nameEn: 'Sara Khaled', role: 'manager', email: 'sara.khaled@flowup.co', avatar: 'SK', department: 'd1' },
-  { id: 'u2', name: 'يوسف محمود', nameEn: 'Yousef Mahmoud', role: 'design_supervisor', email: 'yousef.mahmoud@flowup.co', avatar: 'YM', department: 'd1' },
-  { id: 'u3', name: 'مريم حسن', nameEn: 'Mariam Hassan', role: 'scientific_supervisor', email: 'mariam.hassan@flowup.co', avatar: 'MH', department: 'd1' },
-  { id: 'u4', name: 'أحمد علي', nameEn: 'Ahmed Ali', role: 'designer', email: 'ahmed.ali@flowup.co', avatar: 'AA', department: 'd1' },
-  { id: 'u5', name: 'كريم ناصر', nameEn: 'Karim Nasser', role: 'designer', email: 'karim.nasser@flowup.co', avatar: 'KN', department: 'd1' },
-  { id: 'u6', name: 'ندى سامي', nameEn: 'Nada Sami', role: 'scientific_supervisor', email: 'nada.sami@flowup.co', avatar: 'NS', department: 'd2' },
+  { id: 'u1', name: 'سارة خالد', nameEn: 'Sara Khaled', role: 'manager', email: 'sara.khaled@flowup.co', employeeCode: 'HR-EMP-0001', avatar: 'SK', department: 'd1' },
+  { id: 'u2', name: 'يوسف محمود', nameEn: 'Yousef Mahmoud', role: 'design_supervisor', email: 'yousef.mahmoud@flowup.co', employeeCode: 'HR-EMP-0002', avatar: 'YM', department: 'd1' },
+  { id: 'u3', name: 'مريم حسن', nameEn: 'Mariam Hassan', role: 'scientific_supervisor', email: 'mariam.hassan@flowup.co', employeeCode: 'HR-EMP-0012', avatar: 'MH', department: 'd1' },
+  { id: 'u4', name: 'أحمد علي', nameEn: 'Ahmed Ali', role: 'designer', email: 'ahmed.ali@flowup.co', employeeCode: 'HR-EMP-0023', avatar: 'AA', department: 'd1' },
+  { id: 'u5', name: 'كريم ناصر', nameEn: 'Karim Nasser', role: 'designer', email: 'karim.nasser@flowup.co', employeeCode: 'HR-EMP-0024', avatar: 'KN', department: 'd1' },
+  { id: 'u6', name: 'ندى سامي', nameEn: 'Nada Sami', role: 'scientific_supervisor', email: 'nada.sami@flowup.co', employeeCode: 'HR-EMP-0007', avatar: 'NS', department: 'd2' },
+];
+
+// Mock ERPNext employee codes — for the "Add Member" form select.
+export const mockEmployeeCodes: string[] = [
+  'HR-EMP-0001', 'HR-EMP-0002', 'HR-EMP-0007', 'HR-EMP-0012', 'HR-EMP-0021',
+  'HR-EMP-0023', 'HR-EMP-0024', 'HR-EMP-0031', 'HR-EMP-0032', 'HR-EMP-0033',
 ];
 
 export const departments: Department[] = [
@@ -173,6 +196,15 @@ export const messages: Message[] = [
   { id: 'm15', roomId: 'r2', senderId: 'u6', type: 'revision', text: 'محتاج تعديل في صفحة 12، العنوان يكون أوضح.', textEn: 'Need revision on page 12, the title should be clearer.', taskId: 't2', timestamp: daysAgo(2), isRead: true },
   { id: 'm16', roomId: 'r2', senderId: 'u5', type: 'submission', text: 'تم رفع النسخة الثانية للمراجعة', textEn: 'Version 2 submitted for review', taskId: 't2', timestamp: hoursAgo(3), isRead: false },
   { id: 'm17', roomId: 'r2', senderId: 'u6', type: 'text', text: 'محتاج تعديل في صفحة 12، العنوان يكون أوضح.', textEn: 'Need revision on page 12, the title should be clearer.', taskId: 't2', timestamp: hoursAgo(3), isRead: false },
+
+  // Subject-chat messages — show inside the subject chat AND inside the designer's read-only feed.
+  { id: 'sm1', roomId: 'asg_s1_u4', senderId: 'u3', type: 'text', text: 'أهلاً أحمد، جاهزين نبدأ في درس الحركة؟', textEn: 'Hi Ahmed, ready to start the motion lesson?', timestamp: hoursAgo(7), isRead: true },
+  { id: 'sm2', roomId: 'asg_s1_u4', senderId: 'u4', type: 'text', text: 'تمام يا دكتورة، هبدأ دلوقتي.', textEn: 'Sure, starting now.', timestamp: hoursAgo(6), isRead: true },
+  { id: 'sm3', roomId: 'asg_s1_u4', senderId: 'u4', type: 'submission', text: 'تم رفع النسخة 1 للمراجعة', textEn: 'Version 1 submitted for review', timestamp: hoursAgo(5), isRead: true },
+  { id: 'sm4', roomId: 'asg_s3_u4', senderId: 'u2', type: 'text', text: 'محتاجين نخلّص غلاف الفيزياء الأسبوع ده.', textEn: 'We need to finish the physics cover this week.', timestamp: hoursAgo(4), isRead: true },
+  { id: 'sm5', roomId: 'asg_s3_u4', senderId: 'u2', type: 'revision', text: 'لون العنوان غامق شوية، فتّحه درجة.', textEn: 'The title color is a bit dark, lighten it a notch.', timestamp: hoursAgo(3), isRead: true },
+  { id: 'sm6', roomId: 'asg_s4_u4', senderId: 'u3', type: 'text', text: 'راجعت شرح الدعامة، شغل ممتاز.', textEn: 'Reviewed the support lesson, excellent work.', timestamp: hoursAgo(2), isRead: true },
+  { id: 'sm7', roomId: 'asg_s1_u5', senderId: 'u3', type: 'text', text: 'كريم، فيه ملاحظة بسيطة على صفحة 3.', textEn: 'Karim, a small note on page 3.', timestamp: hoursAgo(3), isRead: true },
 ];
 
 export const auditLogs: AuditLog[] = [
@@ -193,3 +225,169 @@ export const mockTaskPreviews: Record<string, { title: string; titleEn: string; 
   'TASK-00048': { title: 'إعادة تصميم غلاف كتاب الفيزياء', titleEn: 'Physics Book Cover Redesign', deadline: daysFromNow(4), priority: 'urgent', project: 'Physics Grade 8', erpStatus: 'New' },
   'BIO-CH02-L01': { title: 'إخراج درس التكاثر في الكائنات الحية', titleEn: 'Reproduction in Organisms', deadline: daysFromNow(10), priority: 'normal', project: 'Biology Grade 6', erpStatus: 'Pending Assignment' },
 };
+
+// Subjects (المواد) — each becomes a designer chat. Seeded with the agreed list.
+export const subjects: Subject[] = [
+  { id: 's1', name: 'الأحياء أسئلة وتدريبات', color: '#16a34a', item: 'كتاب الأحياء', project: 'Biology Grade 6', scientificSupervisorCode: 'HR-EMP-0012', designerIds: ['u4', 'u5'], active: true },
+  { id: 's2', name: 'الكيمياء أسئلة وتدريبات', color: '#0ea5e9', item: 'كتاب الكيمياء', project: 'Chemistry Grade 7', scientificSupervisorCode: 'HR-EMP-0007', designerIds: ['u5'], active: true },
+  { id: 's3', name: 'الفيزياء أسئلة وتدريبات', color: '#8b5cf6', item: 'كتاب الفيزياء', project: 'Physics Grade 8', scientificSupervisorCode: 'HR-EMP-0021', designerIds: ['u4'], active: true },
+  { id: 's4', name: 'الأحياء شرح', color: '#f59e0b', item: 'كتاب الأحياء', project: 'Biology Grade 6', scientificSupervisorCode: 'HR-EMP-0012', designerIds: ['u4'], active: true },
+];
+
+// Mock "Items" available in the system (ERPNext Item later) — for the subject form select.
+export const mockItems: string[] = [
+  'كتاب الأحياء',
+  'كتاب الكيمياء',
+  'كتاب الفيزياء',
+  'كتاب الرياضيات',
+  'مذكرة مراجعة نهائية',
+  'بنك الأسئلة',
+];
+
+// Mock projects — for the subject form select.
+export const mockProjects: string[] = [
+  'Biology Grade 5',
+  'Biology Grade 6',
+  'Chemistry Grade 6',
+  'Chemistry Grade 7',
+  'Physics Grade 8',
+  'Math Grade 7',
+];
+
+// Build the (designer × subject) assignment chats. Each assignment is ONE chat/room.
+// Participants: the designer + the subject's scientific supervisor (matched by employeeCode)
+// + all design supervisors + managers (oversight). Derived live from subjects + users.
+export function buildAssignmentRooms(subjectList: Subject[], userList: User[]): Room[] {
+  const supervisorIds = userList.filter(u => u.role === 'design_supervisor' || u.role === 'manager').map(u => u.id);
+  const out: Room[] = [];
+  for (const s of subjectList) {
+    const sci = userList.find(u => u.employeeCode === s.scientificSupervisorCode);
+    for (const designerId of s.designerIds) {
+      const participantIds = Array.from(new Set([designerId, ...(sci ? [sci.id] : []), ...supervisorIds]));
+      out.push({
+        id: `asg_${s.id}_${designerId}`,
+        name: s.name,
+        nameEn: s.name,
+        departmentId: 'd1',
+        type: 'subject',
+        subjectId: s.id,
+        designerId,
+        participantIds,
+        lastMessage: '',
+        lastMessageEn: '',
+        lastMessageTime: now,
+        unreadCount: 0,
+        activeTaskCount: 0,
+        isActive: s.active,
+      });
+    }
+  }
+  return out;
+}
+
+// One read-only "feed" group per designer — pinned at the top of THEIR list only.
+// It aggregates every message from all of that designer's subject chats; nobody can write in it.
+export function buildFeedRooms(userList: User[]): Room[] {
+  return userList
+    .filter(u => u.role === 'designer')
+    .map(designer => ({
+      id: `feed_${designer.id}`,
+      name: `جروب التصميم - ${designer.name}`,
+      nameEn: `Design Group - ${designer.nameEn}`,
+      departmentId: designer.department,
+      type: 'feed' as const,
+      designerId: designer.id,
+      participantIds: [designer.id],
+      lastMessage: '',
+      lastMessageEn: '',
+      lastMessageTime: now,
+      unreadCount: 0,
+      activeTaskCount: 0,
+      isActive: true,
+    }));
+}
+
+// "By designer" view for a scientific supervisor: ONE merged chat per designer that
+// aggregates ALL of the supervisor's subjects that designer works on. Viewer-dependent —
+// only built for a scientific_supervisor, scoped to the subjects they own (by employeeCode).
+// The supervisor must pick which subject a message belongs to before sending (handled in ChatPage).
+export function buildSupervisorMergeRooms(viewer: User, subjectList: Subject[], userList: User[]): Room[] {
+  if (viewer.role !== 'scientific_supervisor') return [];
+  const supervisorIds = userList.filter(u => u.role === 'design_supervisor' || u.role === 'manager').map(u => u.id);
+  const mySubjects = subjectList.filter(s => s.scientificSupervisorCode === viewer.employeeCode);
+
+  // designerId -> the subjects (of this supervisor) they work on
+  const byDesigner = new Map<string, string[]>();
+  for (const s of mySubjects) {
+    for (const designerId of s.designerIds) {
+      const arr = byDesigner.get(designerId) ?? [];
+      arr.push(s.id);
+      byDesigner.set(designerId, arr);
+    }
+  }
+
+  const out: Room[] = [];
+  for (const [designerId, subjectIds] of byDesigner) {
+    const designer = userList.find(u => u.id === designerId);
+    out.push({
+      id: `smrg_${viewer.id}_${designerId}`,
+      name: designer ? designer.name : '',
+      nameEn: designer ? designer.nameEn : '',
+      departmentId: 'd1',
+      type: 'subject_merge',
+      designerId,
+      subjectIds,
+      participantIds: Array.from(new Set([viewer.id, designerId, ...supervisorIds])),
+      lastMessage: '',
+      lastMessageEn: '',
+      lastMessageTime: now,
+      unreadCount: 0,
+      activeTaskCount: 0,
+      isActive: true,
+    });
+  }
+  return out;
+}
+
+// 12-hour clock, ALWAYS Latin digits, with an Arabic (ص/م) or English (AM/PM) suffix.
+export function formatTime12(date: Date, lang: 'ar' | 'en'): string {
+  let h = date.getHours();
+  const m = date.getMinutes();
+  const am = h < 12;
+  h = h % 12 || 12;
+  const mm = String(m).padStart(2, '0');
+  const suffix = lang === 'ar' ? (am ? 'ص' : 'م') : (am ? 'AM' : 'PM');
+  return `${h}:${mm} ${suffix}`;
+}
+
+// Per-role display name for a chat:
+//  - the designer sees the subject ("تصميم <المادة>")
+//  - the scientific supervisor sees "designer · تصميم subject" (subject disambiguates same-designer rooms)
+//  - manager / design supervisor see "designer · subject"
+//  - direct chats show the OTHER participant's name
+export function getRoomDisplayName(room: Room, viewer: User, lang: 'ar' | 'en', userList: User[], subjectList: Subject[]): string {
+  // Merged "by designer" room — always the designer's name (it spans several subjects).
+  if (room.type === 'subject_merge' && room.designerId) {
+    const designer = userList.find(u => u.id === room.designerId);
+    return designer ? (lang === 'ar' ? designer.name : designer.nameEn) : room.name;
+  }
+  if (room.type === 'subject' && room.subjectId && room.designerId) {
+    const subject = subjectList.find(s => s.id === room.subjectId);
+    const designer = userList.find(u => u.id === room.designerId);
+    const subjName = subject ? subject.name : room.name;
+    const desName = designer ? (lang === 'ar' ? designer.name : designer.nameEn) : '';
+    if (viewer.id === room.designerId) {
+      return lang === 'ar' ? `تصميم ${subjName}` : `Design — ${subjName}`;
+    }
+    if (viewer.role === 'scientific_supervisor') {
+      return lang === 'ar' ? `${desName} · تصميم ${subjName}` : `${desName} · Design — ${subjName}`;
+    }
+    return `${desName} · ${subjName}`;
+  }
+  if (room.type === 'direct') {
+    const otherId = room.participantIds.find(id => id !== viewer.id);
+    const other = userList.find(u => u.id === otherId);
+    if (other) return lang === 'ar' ? other.name : other.nameEn;
+  }
+  return lang === 'ar' ? room.name : room.nameEn;
+}
