@@ -1,7 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, Plus, Users, ChevronLeft, ChevronRight, PanelRightOpen } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Send, Plus, Users, ChevronLeft, ChevronRight, PanelRightOpen } from 'lucide-react';
 import { RoomList } from '@/components/chat/RoomList';
 import { MessageItem } from '@/components/chat/MessageItem';
 import { TaskDetailsPanel } from '@/components/tasks/TaskDetailsPanel';
@@ -12,24 +11,65 @@ import { useToast } from '@/hooks/use-toast';
 
 type MobileView = 'rooms' | 'chat' | 'task';
 
+const ROOMS_MIN = 200;
+const ROOMS_MAX = 520;
+const ROOMS_DEFAULT = 288;
+
 export function ChatPage() {
   const { lang, dir, allMessages, allRooms, allUsers, selectedRoomId, setSelectedRoomId, setSelectedTaskId, selectedTaskId, currentRole, sendMessage, currentUser } = useApp();
   const tr = getTranslations(lang);
   const { toast } = useToast();
+
   const [messageText, setMessageText] = useState('');
   const [showSendTask, setShowSendTask] = useState(false);
   const [showTaskPanel, setShowTaskPanel] = useState(true);
   const [mobileView, setMobileView] = useState<MobileView>('rooms');
+
+  // Resizable rooms pane
+  const [roomsWidth, setRoomsWidth] = useState(ROOMS_DEFAULT);
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartWidth = useRef(ROOMS_DEFAULT);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const room = selectedRoomId ? allRooms.find(r => r.id === selectedRoomId) : null;
   const roomMessages = allMessages.filter(m => m.roomId === selectedRoomId);
-
   const canSendTask = currentRole !== 'designer';
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [roomMessages.length]);
+
+  // Drag handlers — work correctly for both RTL and LTR
+  const onDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDragging.current = true;
+    dragStartX.current = e.clientX;
+    dragStartWidth.current = roomsWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [roomsWidth]);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!isDragging.current) return;
+      const delta = dir === 'rtl'
+        ? dragStartX.current - e.clientX   // RTL: drag left → wider
+        : e.clientX - dragStartX.current;  // LTR: drag right → wider
+      const next = Math.min(ROOMS_MAX, Math.max(ROOMS_MIN, dragStartWidth.current + delta));
+      setRoomsWidth(next);
+    };
+    const onUp = () => {
+      if (!isDragging.current) return;
+      isDragging.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, [dir]);
 
   const handleSend = () => {
     if (!messageText.trim() || !selectedRoomId) return;
@@ -69,12 +109,23 @@ export function ChatPage() {
   const messageGroups = groupMessagesByDate();
 
   return (
-    <div className="flex h-full">
-      {/* ROOMS PANE — desktop always visible, mobile toggle */}
-      <div className={`${mobileView === 'rooms' ? 'flex' : 'hidden'} lg:flex w-full lg:w-72 xl:w-80 flex-shrink-0`}>
-        <div className="w-full">
-          <RoomList onRoomSelect={handleRoomSelect} />
-        </div>
+    <div className="flex h-full overflow-hidden">
+      {/* ROOMS PANE — desktop: resizable, mobile: toggle */}
+      <div
+        className={`${mobileView === 'rooms' ? 'flex' : 'hidden'} lg:flex flex-shrink-0 flex-col overflow-hidden`}
+        style={{ width: roomsWidth }}
+      >
+        <RoomList onRoomSelect={handleRoomSelect} />
+      </div>
+
+      {/* DRAG HANDLE — desktop only */}
+      <div
+        onMouseDown={onDragStart}
+        className="hidden lg:flex w-1 flex-shrink-0 cursor-col-resize items-center justify-center group relative"
+        data-testid="rooms-resize-handle"
+      >
+        <div className="absolute inset-y-0 -inset-x-1 group-hover:bg-secondary/15 transition-colors duration-150 rounded" />
+        <div className="w-0.5 h-10 bg-border rounded-full group-hover:bg-secondary/50 transition-colors duration-150" />
       </div>
 
       {/* CHAT PANE */}
@@ -86,7 +137,9 @@ export function ChatPage() {
                 <Users size={28} className="text-muted-foreground" />
               </div>
               <p className="text-sm font-semibold text-foreground">{tr.noRooms}</p>
-              <p className="text-xs text-muted-foreground mt-1">{lang === 'ar' ? 'اختر غرفة من القائمة للبدء' : 'Select a room to start chatting'}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {lang === 'ar' ? 'اختر غرفة من القائمة للبدء' : 'Select a room to start chatting'}
+              </p>
             </div>
           </div>
         ) : (
@@ -175,7 +228,7 @@ export function ChatPage() {
                     <Plus size={16} />
                   </motion.button>
                 )}
-                <div className="flex-1 relative">
+                <div className="flex-1">
                   <textarea
                     value={messageText}
                     onChange={e => setMessageText(e.target.value)}
@@ -222,7 +275,7 @@ export function ChatPage() {
         )}
       </AnimatePresence>
 
-      {/* Mobile: back to rooms */}
+      {/* Mobile: back button */}
       {mobileView === 'chat' && (
         <div className="lg:hidden fixed bottom-20 start-4">
           <button
