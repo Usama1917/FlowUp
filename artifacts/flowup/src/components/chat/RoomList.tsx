@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search } from 'lucide-react';
+import { Search, Layers, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useApp } from '@/contexts/AppContext';
 import { getTranslations } from '@/i18n/translations';
@@ -35,6 +35,19 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null);
+  const [deptOpen, setDeptOpen] = useState(false);
+  const deptRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (deptRef.current && !deptRef.current.contains(e.target as Node)) {
+        setDeptOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const filters: { key: Filter; label: string }[] = [
     { key: 'all', label: tr.allRooms },
@@ -42,6 +55,9 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
     { key: 'active', label: tr.activeTasks },
     { key: 'overdue', label: tr.overdue },
   ];
+
+  const activeDepts = allDepartments.filter(d => d.active);
+  const selectedDept = activeDepts.find(d => d.id === selectedDeptId);
 
   const filteredRooms = allRooms.filter(room => {
     const name = lang === 'ar' ? room.name : room.nameEn;
@@ -62,39 +78,78 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
 
   return (
     <div className="flex flex-col h-full bg-card border-e border-border">
-      {/* Header */}
-      <div className="px-4 pt-4 pb-3 border-b border-border">
-        {/* Dept pills */}
-        <div className="flex gap-1 overflow-x-auto scrollbar-none pb-1">
-          <button
-            onClick={() => setSelectedDeptId(null)}
-            className={`flex-shrink-0 text-xs px-2.5 py-1 rounded-full transition-colors duration-150 ${!selectedDeptId ? 'bg-secondary text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
-          >
-            {tr.all}
-          </button>
-          {allDepartments.filter(d => d.active).map(dept => (
-            <button
-              key={dept.id}
-              onClick={() => setSelectedDeptId(selectedDeptId === dept.id ? null : dept.id)}
-              className={`flex-shrink-0 text-xs px-2.5 py-1 rounded-full transition-colors duration-150 ${selectedDeptId === dept.id ? 'bg-secondary text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
-            >
-              {lang === 'ar' ? dept.name : dept.nameEn}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Search + Dept button row */}
+      <div className="px-3 pt-3 pb-2">
+        <div className="flex items-center gap-2">
+          {/* Search */}
+          <div className="relative flex-1">
+            <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={tr.searchRooms}
+              className="ps-8 h-8 text-sm bg-muted/50 border-0 rounded-xl"
+              data-testid="room-search"
+            />
+          </div>
 
-      {/* Search */}
-      <div className="px-3 py-2">
-        <div className="relative">
-          <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder={tr.searchRooms}
-            className="ps-8 h-8 text-sm bg-muted/50 border-0 rounded-xl"
-            data-testid="room-search"
-          />
+          {/* Dept filter button */}
+          <div ref={deptRef} className="relative flex-shrink-0">
+            <motion.button
+              whileTap={{ scale: 0.94 }}
+              onClick={() => setDeptOpen(v => !v)}
+              data-testid="dept-filter-btn"
+              className={`flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium transition-colors duration-150 border ${
+                selectedDeptId
+                  ? 'bg-secondary text-white border-secondary'
+                  : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              <Layers size={13} />
+              {selectedDept
+                ? <span className="max-w-[60px] truncate">{lang === 'ar' ? selectedDept.name : selectedDept.nameEn}</span>
+                : <span>{tr.all}</span>
+              }
+            </motion.button>
+
+            {/* Floating dropdown */}
+            <AnimatePresence>
+              {deptOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute top-full mt-1.5 end-0 z-50 bg-card border border-border rounded-2xl shadow-xl overflow-hidden min-w-[180px]"
+                >
+                  {/* All option */}
+                  <button
+                    onClick={() => { setSelectedDeptId(null); setDeptOpen(false); }}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm transition-colors hover:bg-muted/60 ${!selectedDeptId ? 'text-secondary font-medium' : 'text-foreground'}`}
+                    data-testid="dept-option-all"
+                  >
+                    <span>{tr.all}</span>
+                    {!selectedDeptId && <Check size={13} className="text-secondary" />}
+                  </button>
+                  <div className="h-px bg-border mx-2" />
+                  {activeDepts.map(dept => (
+                    <button
+                      key={dept.id}
+                      onClick={() => { setSelectedDeptId(selectedDeptId === dept.id ? null : dept.id); setDeptOpen(false); }}
+                      className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm transition-colors hover:bg-muted/60 ${selectedDeptId === dept.id ? 'text-secondary font-medium' : 'text-foreground'}`}
+                      data-testid={`dept-option-${dept.id}`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-xs font-mono text-muted-foreground ltr-value">{dept.code}</span>
+                        <span className="truncate">{lang === 'ar' ? dept.name : dept.nameEn}</span>
+                      </div>
+                      {selectedDeptId === dept.id && <Check size={13} className="text-secondary flex-shrink-0" />}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
@@ -113,7 +168,7 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
       </div>
 
       {/* Room list */}
-      <div className="flex-1 overflow-y-auto scrollbar-none">
+      <div className="flex-1 overflow-y-auto scrollbar-none border-t border-border/50">
         <AnimatePresence>
           {filteredRooms.length === 0 ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-12 text-center px-4">
