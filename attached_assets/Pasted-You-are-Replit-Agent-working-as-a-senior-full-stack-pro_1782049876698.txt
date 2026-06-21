@@ -1,0 +1,772 @@
+You are Replit Agent working as a senior full-stack product engineer and UI/UX engineer.
+
+Build a complete modern web app prototype called **FlowUp**.
+
+This prototype is for an internal company communication and task follow-up system.
+
+Important: This is a standalone prototype first. Do not integrate with ERPNext yet. Build a polished, working demo that shows the full user experience clearly. Later, another developer will adapt it into ERPNext/Frappe.
+
+## Main Goal
+
+FlowUp is a modern chat-based task delivery and follow-up system for a company.
+
+The company currently uses Telegram groups to send work between supervisors and designers. This causes confusion, lost files, unclear versions, and poor tracking.
+
+FlowUp should replace that messy communication with a structured internal system:
+
+* Departments
+* Rooms/groups
+* Chat
+* Task cards
+* File/submission flow
+* Revision requests
+* Approval
+* Admin/governance
+* Dashboard
+* Audit log
+
+The first MVP focuses on the **Design Department**, but the system should look expandable to other departments.
+
+## Important Product Concept
+
+Do not make this look like an ERP system.
+
+Make it feel like a premium modern SaaS app:
+
+* clean
+* vibrant
+* smooth
+* Arabic-first
+* RTL-correct
+* mobile-friendly
+* simple for non-technical employees
+
+The designer user must feel like they are using a simple chat app, not a complex task management system.
+
+## Tech Stack
+
+Choose a simple modern stack suitable for a Replit prototype.
+
+Preferred:
+
+* React
+* TypeScript if practical
+* Vite
+* Tailwind CSS
+* Local mock data
+* No real database required for the first version unless easy
+* Use client-side state/localStorage for demo persistence if useful
+
+If you choose a different stack, keep it simple and explain why.
+
+## Language
+
+Arabic is the default language.
+
+English must also be supported.
+
+The UI should start in Arabic RTL.
+
+Add a language toggle:
+
+* العربية
+* English
+
+When Arabic is active:
+
+* layout direction must be RTL
+* text alignment should feel natural
+* navigation should be RTL-friendly
+* task codes, emails, IDs, and file names should remain LTR islands
+
+When English is active:
+
+* layout should switch to LTR
+* labels should be translated
+
+Do not hardcode all text in one language only. Use a simple translation dictionary.
+
+## Visual Style
+
+Build a polished modern interface.
+
+Style direction:
+
+* premium SaaS dashboard
+* vibrant colors
+* clean white/soft surfaces
+* dark mode support if possible
+* soft shadows
+* rounded cards
+* clear spacing
+* smooth micro-interactions
+* modern icons
+* friendly and professional
+
+Suggested color direction:
+
+* primary: cyan / electric blue
+* secondary: violet / purple
+* success: green
+* warning: amber
+* danger/revision: pink/red
+* neutral: soft gray backgrounds
+
+Use gradients subtly.
+
+## Icons
+
+Use one icon library only.
+
+Preferred: **Lucide React**.
+
+Icon rules:
+
+* outline/stroke icons by default
+* consistent size
+* active icons should look stronger:
+
+  * accent color
+  * slightly bolder stroke
+  * soft active background
+  * active indicator
+* do not mix icon styles randomly
+* directional icons should work correctly in RTL
+
+## Animation and Interactions
+
+This is very important.
+
+The app must feel smooth and premium.
+
+Add professional micro-interactions for:
+
+* switching rooms
+* sending messages
+* task card appearing in chat
+* opening task details panel
+* opening modals
+* mobile bottom sheets
+* button hover/press
+* active nav icons
+* status badge changes
+* submitting work
+* requesting revision
+* approving task
+* toast success/error feedback
+* admin drill-down
+* dashboard card hover
+* filter selection
+
+Use subtle animations:
+
+* 150–250ms for small interactions
+* 250–350ms for panels/modals
+* natural easing
+* no cartoonish bouncing
+* no distracting effects
+
+Use Framer Motion if useful and lightweight.
+
+## Main Users
+
+Create demo user roles and a simple role switcher for testing.
+
+Roles:
+
+1. FlowUp Manager
+2. Design Supervisor
+3. Scientific Supervisor
+4. Designer
+
+Add a visible role switcher in the prototype so I can test different experiences without login complexity.
+
+Example:
+
+* Current role: Designer
+* Switch to: Manager / Design Supervisor / Scientific Supervisor / Designer
+
+The UI should change based on role.
+
+## Departments
+
+Create mock departments:
+
+* قسم التصميم
+* قسم الحسابات
+* قسم اللوجستيات
+* شؤون الموظفين
+* الشحن والتوزيع
+* الإدارة
+* الميديا والسوشيال
+* البرمجة
+
+Manager can see and manage departments.
+
+Designer mostly sees only relevant rooms/tasks.
+
+## Rooms / Groups
+
+Create mock rooms:
+
+* تصميم الأحياء
+* تصميم الكيمياء
+* مراجعة الفيزياء
+* أحمد - مصمم
+* فريق السوشيال
+* شحن كتب المحافظات
+
+Each room should show:
+
+* room name
+* department
+* last message
+* unread count
+* active task count
+* status indicator
+* participants
+
+## Core Desktop Layout
+
+Create a responsive desktop layout.
+
+Suggested layout in Arabic RTL:
+
+### Main App Shell
+
+Use a compact vertical navigation rail on the right side.
+
+Nav items:
+
+* المحادثات
+* المهام
+* الإدارة
+* لوحة المتابعة
+* السجل
+* الإعدادات
+
+Show active state clearly.
+
+### Rooms Pane
+
+Shows:
+
+* FlowUp title/logo
+* department switcher
+* search
+* filters:
+
+  * الكل
+  * غير مقروء
+  * مهام نشطة
+  * متأخر
+* room list
+
+### Chat Pane
+
+Shows:
+
+* selected room header
+* participants
+* messages
+* system messages
+* task card messages
+* submission messages
+* revision messages
+* message composer
+* upload button
+* send button
+
+### Task Details Pane
+
+Shows selected task details:
+
+* كود المهمة
+* اسم المهمة
+* الحالة
+* حالة ERPNext mock
+* الموعد النهائي
+* المرسل
+* المصمم المسؤول
+* القسم
+* الغرفة
+* عدد التعديلات
+* آخر نشاط
+* الملفات
+
+Actions depend on role.
+
+Designer actions:
+
+* تم الاستلام
+* بدأت العمل
+* تسليم للمراجعة
+
+Supervisor actions:
+
+* طلب تعديل
+* اعتماد
+* إغلاق
+
+## Mobile Layout
+
+Mobile support is very important.
+
+Create responsive mobile screens:
+
+1. Rooms list
+2. Chat screen
+3. Task details as bottom sheet or separate screen
+4. Send task sheet
+5. Submit work sheet
+6. Admin simplified screen
+
+Mobile requirements:
+
+* no horizontal scrolling
+* large tap targets
+* sticky composer
+* clear back navigation
+* bottom navigation
+* RTL correct
+* task cards easy to read
+* actions easy to tap
+
+## Main Chat Features
+
+Implement working mock chat interactions:
+
+* select room
+* see messages
+* send a message
+* show message animation
+* show system messages
+* show task cards
+* open task details
+* change task status
+* show toast feedback
+
+Message types:
+
+* normal text
+* system message
+* task card
+* file/submission message
+* revision request
+* approval
+
+## Task Card Workflow
+
+Create mock tasks with codes like:
+
+* TASK-00045
+* TASK-00046
+* BIO-CH01-L02
+* CHEM-REV-009
+
+Task statuses:
+
+* Sent = تم الإرسال
+* Received = تم الاستلام
+* In Progress = جاري العمل
+* Submitted = تم التسليم للمراجعة
+* Needs Revision = يحتاج تعديل
+* Approved = معتمد
+* Closed = مغلق
+* Overdue = متأخر
+
+Each status needs:
+
+* Arabic label
+* English label
+* color
+* icon if useful
+* subtle background
+
+## Send Task Flow
+
+For Scientific Supervisor / Design Supervisor / Manager:
+
+Add a “Send Task” button.
+
+When clicked, open a modal or side sheet.
+
+Fields:
+
+* كود المهمة
+* اختيار المصمم
+* رسالة اختيارية
+
+When entering a task code, show a mock task preview:
+
+* code
+* title
+* ERPNext status mock
+* deadline
+* project/book
+* priority
+
+Primary action:
+
+* إرسال المهمة
+
+After sending:
+
+* add a task card message in chat
+* create/update selected task details
+* show success toast
+* add audit log item
+* update room last message
+
+## Designer Task Flow
+
+For Designer role:
+
+Designer sees task card and can:
+
+1. Click "تم الاستلام"
+2. Click "بدأت العمل"
+3. Click "تسليم للمراجعة"
+
+When submitting work:
+
+Open submit modal:
+
+* ملاحظة التسليم
+* upload mock file
+* version number shown automatically
+
+After submit:
+
+* task status becomes Submitted
+* show submission message
+* show toast
+* update task details
+* add audit item
+
+## Supervisor Review Flow
+
+For Scientific Supervisor / Design Supervisor / Manager:
+
+When task is Submitted, they can:
+
+* طلب تعديل
+* اعتماد
+* إغلاق
+
+Request revision modal:
+
+* ملاحظة التعديل
+* optional file
+
+Approve action:
+
+* confirm then status becomes Approved
+* show system message
+* show toast
+* add audit item
+
+## Admin / Governance UI
+
+Build a complete admin section for Manager role.
+
+Admin should include:
+
+### Departments
+
+* list departments
+* create department
+* edit department
+* activate/deactivate department
+
+Fields:
+
+* اسم القسم
+* كود القسم
+* وصف القسم
+* مدير القسم
+* الحالة
+
+### Members
+
+Inside department detail:
+
+* list members
+* add member
+* change member role
+* remove/deactivate member
+
+Roles:
+
+* عضو
+* مشرف
+* مدير
+* مسؤول
+
+### Rooms
+
+Inside department:
+
+* list rooms
+* create room
+* edit room
+* activate/deactivate room
+
+Room types:
+
+* محادثة مباشرة
+* مجموعة
+* غرفة قسم
+* غرفة مهمة
+
+### Participants
+
+Inside room detail:
+
+* list participants
+* add participant
+* change role
+* toggle permissions:
+
+  * إرسال رسائل
+  * إرسال مهام
+  * إدارة الغرفة
+
+### Access Grants / Advanced Permissions
+
+Create a clean grouped permissions UI:
+
+Groups:
+
+* التواصل
+* المهام
+* المراجعة
+* الإدارة
+
+Capabilities:
+
+* عرض
+* إرسال رسائل
+* رفع ملفات
+* إرسال مهام
+* تسليم
+* طلب تعديل
+* اعتماد
+* إدارة الأعضاء
+* إدارة الغرفة
+* إدارة القسم
+* إدارة الصلاحيات
+
+Keep this clean and not overwhelming.
+
+## Settings UI
+
+Create settings screen.
+
+Fields:
+
+* اللغة الافتراضية
+* تفعيل تعليقات المهام
+* حجم الرفع الأقصى
+* الامتدادات المسموحة
+* تفعيل السجلات
+* القسم الافتراضي
+* تفعيل الوضع الداكن
+
+Use toggles, selects, inputs, chips.
+
+## Audit Log UI
+
+Create audit log screen.
+
+Show:
+
+* الحركة
+* المستخدم
+* القسم
+* الغرفة
+* المهمة
+* التاريخ
+* التفاصيل
+
+Add filters:
+
+* المستخدم
+* القسم
+* نوع الحركة
+* التاريخ
+
+Mock audit actions:
+
+* إرسال مهمة
+* تغيير حالة
+* تسليم عمل
+* طلب تعديل
+* اعتماد
+* إنشاء قسم
+* إضافة عضو
+* تعديل صلاحيات
+
+## Dashboard UI
+
+Create a dashboard screen.
+
+This is a preview of management monitoring.
+
+Show:
+
+* إجمالي المهام النشطة
+* متأخر
+* مستني مراجعة
+* يحتاج تعديل
+* معتمد
+* عدد الرسائل اليوم
+* ضغط العمل لكل مصمم
+* آخر النشاطات
+* أكثر الغرف نشاطًا
+* مهام تحتاج تدخل
+
+For design supervisor:
+
+* workload per designer
+* overdue tasks
+* submitted waiting review
+* needs revision
+* average revision count
+
+For designer:
+
+* my tasks
+* overdue
+* needs revision
+* submitted waiting review
+
+Use cards/charts if possible, but keep it simple and beautiful.
+
+## Required Screens
+
+The prototype should include at least:
+
+1. Main chat screen
+2. Designer view
+3. Supervisor view
+4. Send task modal
+5. Submit work modal
+6. Request revision modal
+7. Admin departments screen
+8. Department details screen
+9. Room details screen
+10. Settings screen
+11. Audit log screen
+12. Dashboard screen
+13. Mobile rooms screen
+14. Mobile chat screen
+15. Mobile task details screen
+
+## Mock Data
+
+Create realistic Arabic mock data.
+
+Users:
+
+* أحمد علي — مصمم
+* مريم حسن — مشرف علمي أحياء
+* يوسف محمود — مشرف تصميم
+* سارة خالد — مدير FlowUp
+* كريم ناصر — مصمم
+* ندى سامي — مشرف كيمياء
+
+Departments:
+
+* قسم التصميم
+* قسم الحسابات
+* قسم اللوجستيات
+* الميديا والسوشيال
+* البرمجة
+
+Rooms:
+
+* تصميم الأحياء
+* تصميم الكيمياء
+* مراجعة الفيزياء
+* أحمد - مصمم
+* فريق التصميم العام
+
+Tasks:
+
+* TASK-00045 — تصميم درس الحركة في النبات
+* TASK-00046 — تعديل صفحات أسئلة الباب الأول
+* BIO-CH01-L02 — إخراج درس الدعامة والحركة
+* CHEM-REV-009 — مراجعة تصميم درس التحليل الكيميائي
+
+Messages should sound natural in Egyptian Arabic / formal Arabic mix.
+
+Example messages:
+
+* "تمام، وصلت المهمة وهبدأ فيها دلوقتي."
+* "محتاج تعديل في صفحة 12، العنوان يكون أوضح."
+* "تم رفع النسخة الثانية للمراجعة."
+* "تم الاعتماد، شغل ممتاز."
+
+## UX Quality Requirements
+
+The app must feel like a real product, not a rough demo.
+
+Pay attention to:
+
+* spacing
+* alignment
+* typography
+* Arabic readability
+* empty states
+* loading states
+* hover states
+* active states
+* responsive layout
+* modals
+* toasts
+* transitions
+* status colors
+* task card clarity
+
+## Empty States
+
+Add nice empty states:
+
+* no rooms
+* no messages
+* no selected task
+* no audit logs
+* no search results
+* no departments
+
+## Error / Success States
+
+Add toasts or inline feedback for:
+
+* message sent
+* task sent
+* status updated
+* work submitted
+* revision requested
+* task approved
+* department created
+* settings saved
+* mock error state if useful
+
+## Deliverable
+
+Build and run the prototype.
+
+At the end, provide:
+
+1. What was built.
+2. Tech stack used.
+3. How to run it.
+4. Local preview URL.
+5. Role switcher instructions.
+6. Main flows to test.
+7. Known limitations.
+8. Files created/modified.
+
+The final result should be a polished Arabic-first FlowUp prototype that I can open, test, and judge visually before we convert it into the real ERPNext/Frappe implementation.

@@ -1,0 +1,158 @@
+Important UI update for FlowUp prototype:
+
+I want the main navigation to use a **floating top navigation bar**, similar to a modern glass/pill control.
+
+Do not use a boring traditional ERP sidebar as the main navigation.
+
+## Top Floating Navigation Bar
+
+Create a rounded floating top bar centered near the top of the app.
+
+Visual style:
+
+* pill-shaped container
+* white / glass-like background
+* soft shadow
+* subtle border
+* rounded corners
+* clean spacing between icons
+* premium SaaS feel
+* works in Arabic RTL and English LTR
+* responsive on mobile
+
+The top bar should contain icon-only navigation items, with tooltips/labels on hover or active state.
+
+Suggested nav icons:
+
+* Chat / المحادثات
+* Departments or Admin / الإدارة
+* Tasks / المهام
+* Dashboard / لوحة المتابعة
+* Audit / السجل
+* Settings / الإعدادات
+
+The active item should be visually strong:
+
+* soft purple/violet background
+* icon color changes to white or strong purple
+* slight scale or glow
+* smooth transition
+* active indicator if useful
+
+Use a style close to the reference image:
+
+* simple outline icons
+* active icon inside a filled rounded square/circle
+* clean white floating pill
+* modern, minimal, premium
+
+## Icons
+
+Use beautiful modern icons.
+
+Preferred icon library:
+
+* Lucide React
+
+Rules:
+
+* use one icon library only
+* outline/stroke icons by default
+* consistent 24px size
+* consistent stroke width
+* active icon should look stronger
+* do not mix random filled icons with outline icons
+* directional icons must work correctly in RTL
+
+## Animation Requirement
+
+Add smooth animations everywhere, but keep them professional.
+
+Add micro-interactions for:
+
+* top nav item hover
+* top nav item active change
+* switching between sections
+* opening chat
+* selecting room
+* message sending
+* task card appearing
+* opening task details
+* opening modals/bottom sheets
+* button hover and press
+* status badge changes
+* submit work action
+* request revision action
+* approve task action
+* admin drill-down
+* dashboard card hover
+* filter pill selection
+* toast success/error feedback
+
+Animation style:
+
+* smooth
+* premium
+* subtle
+* 150–250ms for small interactions
+* 250–350ms for panels/modals
+* natural easing
+* no cartoonish bounce
+* no annoying effects
+
+Use Framer Motion if useful.
+
+## Arabic / English / RTL
+
+Arabic is the default language.
+
+English must be supported.
+
+When Arabic is active:
+
+* layout must be RTL
+* text alignment must be natural and clean
+* Arabic text should not look cramped
+* chat bubbles should align correctly
+* room list should read correctly
+* task details should align correctly
+* forms and labels should be right/start aligned
+* top navigation should still feel balanced
+
+When English is active:
+
+* layout switches to LTR
+* text alignment switches correctly
+* icons and directional arrows should behave naturally
+
+Important mixed-direction rule:
+
+Task codes, IDs, emails, URLs, file names, and technical values must always display as LTR islands even inside Arabic UI.
+
+Examples:
+
+* TASK-00045
+* BIO-CH01-L02
+* [flowup.manager@example.test](mailto:flowup.manager@example.test)
+* design-final-v2.pdf
+
+These should not break Arabic text direction.
+
+## Overall Visual Quality
+
+The result should look much more premium and alive than a static ERP page.
+
+I want:
+
+* stronger visual polish
+* better spacing
+* more modern layout
+* beautiful icons
+* smooth animation
+* Arabic-first UX
+* mobile-friendly behavior
+* clean alignment
+* no empty huge awkward spaces
+* no confusing layout
+
+Make the prototype feel like a real product that employees would enjoy using every day.

@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "FlowUp"
+version = "1.0.0"
+id = "artifacts/flowup"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18562
+
+[services.development]
+run = "pnpm --filter @workspace/flowup run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/flowup", "run", "build" ]
+publicDir = "artifacts/flowup/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18562"
+BASE_PATH = "/"
