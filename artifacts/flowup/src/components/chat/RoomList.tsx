@@ -64,16 +64,6 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
     <div className="flex flex-col h-full bg-card border-e border-border">
       {/* Header */}
       <div className="px-4 pt-4 pb-3 border-b border-border">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-            <span className="text-white text-xs font-bold">F</span>
-          </div>
-          <div>
-            <h1 className="text-sm font-bold text-foreground leading-tight">FlowUp</h1>
-            <p className="text-xs text-muted-foreground">{tr.appTagline}</p>
-          </div>
-        </div>
-
         {/* Dept pills */}
         <div className="flex gap-1 overflow-x-auto scrollbar-none pb-1">
           <button
