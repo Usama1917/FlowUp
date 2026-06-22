@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { useApp } from '@/contexts/AppContext';
 import { getTranslations } from '@/i18n/translations';
 import { useToast } from '@/hooks/use-toast';
-import type { Department, Subject, User, UserRole } from '@/data/mockData';
+import type { Department, SubDepartment, Subject, User, UserRole } from '@/data/mockData';
 import { mockItems, mockProjects, mockEmployeeCodes } from '@/data/mockData';
 
 const AVATAR_COLORS = ['bg-primary', 'bg-secondary', 'bg-green-500', 'bg-amber-500', 'bg-rose-500', 'bg-purple-600'];
@@ -15,6 +15,35 @@ const AVATAR_COLORS = ['bg-primary', 'bg-secondary', 'bg-green-500', 'bg-amber-5
 type AdminTab = 'departments' | 'members' | 'rooms' | 'subjects' | 'permissions';
 
 const SUBJECT_COLORS = ['#16a34a', '#0ea5e9', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6', '#6366f1'];
+
+// Add / edit / remove the stages (sub-departments) of a department.
+function SubDeptEditor({ value, onChange, lang }: { value: SubDepartment[]; onChange: (v: SubDepartment[]) => void; lang: string }) {
+  // Arabic-first: the input edits the Arabic name and mirrors it to nameEn for new stages.
+  const rename = (id: string, name: string) => onChange(value.map(s => s.id === id ? { ...s, name, nameEn: name } : s));
+  const remove = (id: string) => onChange(value.filter(s => s.id !== id));
+  const add = () => onChange([...value, { id: `sd_${Date.now()}_${value.length}`, name: '', nameEn: '' }]);
+  return (
+    <div className="space-y-1.5">
+      {value.map(s => (
+        <div key={s.id} className="flex items-center gap-1.5">
+          <Input
+            value={s.name}
+            onChange={e => rename(s.id, e.target.value)}
+            className="h-7 text-xs"
+            placeholder={lang === 'ar' ? 'اسم المرحلة (مثال: الرسم)' : 'Stage name'}
+            data-testid={`subdept-input-${s.id}`}
+          />
+          <button type="button" onClick={() => remove(s.id)} className="p-1 text-muted-foreground hover:text-rose-500 transition-colors" data-testid={`subdept-remove-${s.id}`}>
+            <X size={13} />
+          </button>
+        </div>
+      ))}
+      <button type="button" onClick={add} className="flex items-center gap-1 text-xs text-secondary hover:text-secondary/80 transition-colors" data-testid="subdept-add">
+        <Plus size={12} /> {lang === 'ar' ? 'إضافة مرحلة' : 'Add stage'}
+      </button>
+    </div>
+  );
+}
 
 const PERMISSIONS_GROUPS = [
   { key: 'communication', labelAr: 'التواصل', labelEn: 'Communication', perms: ['permView', 'permSendMessage', 'permUploadFiles'] },
@@ -38,7 +67,9 @@ export function AdminPage() {
     permManageMembers: false, permManageRoom: false, permManageDept: false, permManagePerms: false,
   });
 
-  const [newDept, setNewDept] = useState({ name: '', nameEn: '', code: '', description: '', descriptionEn: '', managerId: 'u1' });
+  const [newDept, setNewDept] = useState<{ name: string; nameEn: string; code: string; description: string; descriptionEn: string; managerId: string; subDepartments: SubDepartment[] }>({ name: '', nameEn: '', code: '', description: '', descriptionEn: '', managerId: 'u1', subDepartments: [] });
+  // Which department's stages editor is currently open (in the dept cards list).
+  const [editStagesDeptId, setEditStagesDeptId] = useState<string | null>(null);
 
   const [showAddSubject, setShowAddSubject] = useState(false);
   const [newSubject, setNewSubject] = useState({ name: '', item: '', project: '', scientificSupervisorCode: '', color: SUBJECT_COLORS[0], designerIds: [] as string[] });
@@ -46,8 +77,8 @@ export function AdminPage() {
   // Add/Edit member form
   const [showMemberForm, setShowMemberForm] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [memberForm, setMemberForm] = useState<{ name: string; employeeCode: string; role: UserRole; department: string; roomIds: string[]; subjectIds: string[] }>({
-    name: '', employeeCode: '', role: 'designer', department: 'd1', roomIds: [], subjectIds: [],
+  const [memberForm, setMemberForm] = useState<{ name: string; employeeCode: string; role: UserRole; department: string; roomIds: string[]; subjectIds: string[]; subDepartmentIds: string[] }>({
+    name: '', employeeCode: '', role: 'designer', department: 'd1', roomIds: [], subjectIds: [], subDepartmentIds: [],
   });
 
   // Design Dept. Supervisor has the exact same admin access as the Manager.
@@ -75,8 +106,8 @@ export function AdminPage() {
 
   const handleAddDept = () => {
     if (!newDept.name || !newDept.code) return;
-    addDepartment({ name: newDept.name, nameEn: newDept.nameEn || newDept.name, code: newDept.code.toUpperCase(), description: newDept.description, descriptionEn: newDept.descriptionEn || newDept.description, managerId: newDept.managerId, memberCount: 0, active: true });
-    setNewDept({ name: '', nameEn: '', code: '', description: '', descriptionEn: '', managerId: 'u1' });
+    addDepartment({ name: newDept.name, nameEn: newDept.nameEn || newDept.name, code: newDept.code.toUpperCase(), description: newDept.description, descriptionEn: newDept.descriptionEn || newDept.description, managerId: newDept.managerId, memberCount: 0, active: true, subDepartments: newDept.subDepartments.filter(s => s.name.trim()) });
+    setNewDept({ name: '', nameEn: '', code: '', description: '', descriptionEn: '', managerId: 'u1', subDepartments: [] });
     setShowAddDept(false);
     toast({ title: lang === 'ar' ? 'تم إنشاء القسم بنجاح' : 'Department created successfully' });
   };
@@ -111,7 +142,7 @@ export function AdminPage() {
 
   const openAddMember = () => {
     setEditingUserId(null);
-    setMemberForm({ name: '', employeeCode: '', role: 'designer', department: allDepartments[0]?.id || 'd1', roomIds: [], subjectIds: [] });
+    setMemberForm({ name: '', employeeCode: '', role: 'designer', department: allDepartments[0]?.id || 'd1', roomIds: [], subjectIds: [], subDepartmentIds: [] });
     setShowMemberForm(true);
   };
 
@@ -124,6 +155,7 @@ export function AdminPage() {
       department: user.department,
       roomIds: allRooms.filter(r => ['group', 'dept_room', 'task_room'].includes(r.type) && r.participantIds.includes(user.id)).map(r => r.id),
       subjectIds: allSubjects.filter(s => s.designerIds.includes(user.id)).map(s => s.id),
+      subDepartmentIds: user.subDepartmentIds ?? [],
     });
     setShowMemberForm(true);
   };
@@ -134,6 +166,10 @@ export function AdminPage() {
 
   const toggleMemberSubject = (subjectId: string) => {
     setMemberForm(p => ({ ...p, subjectIds: p.subjectIds.includes(subjectId) ? p.subjectIds.filter(id => id !== subjectId) : [...p.subjectIds, subjectId] }));
+  };
+
+  const toggleMemberSubDept = (subDeptId: string) => {
+    setMemberForm(p => ({ ...p, subDepartmentIds: p.subDepartmentIds.includes(subDeptId) ? p.subDepartmentIds.filter(id => id !== subDeptId) : [...p.subDepartmentIds, subDeptId] }));
   };
 
   const toggleNewSubjectDesigner = (designerId: string) => {
@@ -150,6 +186,7 @@ export function AdminPage() {
         role: memberForm.role,
         department: memberForm.department,
         avatar: initialsOf(memberForm.name),
+        subDepartmentIds: memberForm.role === 'designer' ? memberForm.subDepartmentIds : [],
       });
       setUserRooms(editingUserId, memberForm.roomIds);
       setDesignerSubjects(editingUserId, memberForm.role === 'designer' ? memberForm.subjectIds : []);
@@ -163,6 +200,7 @@ export function AdminPage() {
         employeeCode: memberForm.employeeCode,
         avatar: initialsOf(memberForm.name),
         department: memberForm.department,
+        subDepartmentIds: memberForm.role === 'designer' ? memberForm.subDepartmentIds : [],
       });
       setUserRooms(id, memberForm.roomIds);
       setDesignerSubjects(id, memberForm.role === 'designer' ? memberForm.subjectIds : []);
@@ -258,6 +296,11 @@ export function AdminPage() {
                     <label className="text-xs text-muted-foreground mb-1 block">{tr.departmentDesc}</label>
                     <Input value={newDept.description} onChange={e => setNewDept(p => ({ ...p, description: e.target.value }))} className="h-8 text-sm" />
                   </div>
+                  {/* Sub-departments (stages) */}
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">{lang === 'ar' ? 'الأقسام الفرعية (المراحل)' : 'Sub-departments (stages)'}</label>
+                    <SubDeptEditor value={newDept.subDepartments} onChange={v => setNewDept(p => ({ ...p, subDepartments: v }))} lang={lang} />
+                  </div>
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => setShowAddDept(false)} className="flex-1">{tr.cancel}</Button>
                     <Button size="sm" onClick={handleAddDept} className="flex-1" data-testid="save-dept">{tr.save}</Button>
@@ -304,6 +347,39 @@ export function AdminPage() {
                         {dept.memberCount} {lang === 'ar' ? 'عضو' : 'members'}
                       </span>
                       <span>{lang === 'ar' ? 'المدير:' : 'Manager:'} {lang === 'ar' ? manager?.name : manager?.nameEn}</span>
+                    </div>
+
+                    {/* Sub-departments (stages) — view as chips, or edit inline */}
+                    <div className="mt-3 pt-3 border-t border-border/60">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-medium text-muted-foreground">{lang === 'ar' ? 'الأقسام الفرعية' : 'Sub-departments'}</span>
+                        <button
+                          onClick={() => setEditStagesDeptId(prev => prev === dept.id ? null : dept.id)}
+                          className="flex items-center gap-1 text-xs text-secondary hover:text-secondary/80 transition-colors"
+                          data-testid={`edit-stages-${dept.id}`}
+                        >
+                          <Edit2 size={11} />
+                          {editStagesDeptId === dept.id ? (lang === 'ar' ? 'تم' : 'Done') : (lang === 'ar' ? 'تعديل' : 'Edit')}
+                        </button>
+                      </div>
+                      {editStagesDeptId === dept.id ? (
+                        <SubDeptEditor
+                          value={dept.subDepartments ?? []}
+                          onChange={v => updateDepartment(dept.id, { subDepartments: v })}
+                          lang={lang}
+                        />
+                      ) : (dept.subDepartments?.length ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {dept.subDepartments.map((s, i) => (
+                            <span key={s.id} className="flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full bg-muted text-foreground">
+                              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: SUBJECT_COLORS[i % SUBJECT_COLORS.length] }} />
+                              {lang === 'ar' ? s.name : s.nameEn}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground/70">{lang === 'ar' ? 'لا توجد أقسام فرعية' : 'No sub-departments'}</span>
+                      ))}
                     </div>
                   </motion.div>
                 );
@@ -415,6 +491,35 @@ export function AdminPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* Stages (sub-departments) this designer works in — drives which stage chats they get */}
+                  {memberForm.role === 'designer' && (() => {
+                    const memberDeptStages = allDepartments.find(d => d.id === memberForm.department)?.subDepartments ?? [];
+                    if (!memberDeptStages.length) return null;
+                    return (
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1.5 block">{lang === 'ar' ? 'المراحل المكلّف بها' : 'Assigned Stages'}</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {memberDeptStages.map((s, i) => {
+                            const checked = memberForm.subDepartmentIds.includes(s.id);
+                            return (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => toggleMemberSubDept(s.id)}
+                                data-testid={`member-stage-${s.id}`}
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${checked ? 'text-white border-transparent' : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground'}`}
+                                style={checked ? { backgroundColor: SUBJECT_COLORS[i % SUBJECT_COLORS.length] } : undefined}
+                              >
+                                {checked ? <Check size={11} /> : <span className="w-2 h-2 rounded-full" style={{ backgroundColor: SUBJECT_COLORS[i % SUBJECT_COLORS.length] }} />}
+                                {lang === 'ar' ? s.name : s.nameEn}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   <div className="flex gap-2 pt-1">
                     <Button variant="outline" size="sm" onClick={() => { setShowMemberForm(false); setEditingUserId(null); }} className="flex-1">{tr.cancel}</Button>

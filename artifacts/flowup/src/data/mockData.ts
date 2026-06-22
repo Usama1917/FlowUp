@@ -9,6 +9,15 @@ export interface User {
   employeeCode: string;   // كود الموظف من ERPNext
   avatar: string;
   department: string;     // department id
+  subDepartmentIds?: string[]; // for designers — which stages they can work in (رسم/تدقيق/...)
+}
+
+// A stage / sub-department inside a department (e.g. Design → تصميم، رسم، تدقيق، كتابة).
+// A subject "passes through" every stage, so it gets one chat per (designer × stage).
+export interface SubDepartment {
+  id: string;
+  name: string;
+  nameEn: string;
 }
 
 export interface Department {
@@ -21,6 +30,7 @@ export interface Department {
   managerId: string;
   memberCount: number;
   active: boolean;
+  subDepartments?: SubDepartment[]; // stages; the first one is the "main" stage
 }
 
 // A "Subject" (مادة) — each subject becomes a chat/room the designer sees.
@@ -45,6 +55,7 @@ export interface Room {
   subjectId?: string;   // for subject-assignment chats — which subject
   subjectIds?: string[]; // for subject_merge — every subject this merged designer chat aggregates
   designerId?: string;  // for subject-assignment chats, feed & subject_merge — the designer it belongs to
+  subDepartmentId?: string; // for subject-assignment chats — which stage (رسم/تدقيق/كتابة/تصميم)
   participantIds: string[];
   lastMessage: string;
   lastMessageEn: string;
@@ -86,6 +97,14 @@ export interface Task {
 
 export type MessageType = 'text' | 'system' | 'task_card' | 'submission' | 'revision' | 'approval';
 
+// Delivery / read status for outgoing messages (WhatsApp / Telegram style):
+//  - 'sending'   → clock icon: not yet left the device (offline / in-flight), hasn't reached the system.
+//  - 'sent'      → single gray check: reached the system, recipient(s) still offline.
+//  - 'delivered' → double gray check: reached a recipient's online device, not opened yet.
+//  - 'read'      → double blue check: opened/seen by a recipient.
+// In a group, ANY recipient counts (no per-person tracking in this prototype).
+export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read';
+
 export interface Message {
   id: string;
   roomId: string;
@@ -96,6 +115,7 @@ export interface Message {
   taskId?: string;
   timestamp: Date;
   isRead: boolean;
+  deliveryStatus?: MessageStatus; // outgoing-only; falls back to isRead when absent (seed data)
 }
 
 export interface AuditLog {
@@ -120,8 +140,8 @@ export const users: User[] = [
   { id: 'u1', name: 'سارة خالد', nameEn: 'Sara Khaled', role: 'manager', email: 'sara.khaled@flowup.co', employeeCode: 'HR-EMP-0001', avatar: 'SK', department: 'd1' },
   { id: 'u2', name: 'يوسف محمود', nameEn: 'Yousef Mahmoud', role: 'design_supervisor', email: 'yousef.mahmoud@flowup.co', employeeCode: 'HR-EMP-0002', avatar: 'YM', department: 'd1' },
   { id: 'u3', name: 'مريم حسن', nameEn: 'Mariam Hassan', role: 'scientific_supervisor', email: 'mariam.hassan@flowup.co', employeeCode: 'HR-EMP-0012', avatar: 'MH', department: 'd1' },
-  { id: 'u4', name: 'أحمد علي', nameEn: 'Ahmed Ali', role: 'designer', email: 'ahmed.ali@flowup.co', employeeCode: 'HR-EMP-0023', avatar: 'AA', department: 'd1' },
-  { id: 'u5', name: 'كريم ناصر', nameEn: 'Karim Nasser', role: 'designer', email: 'karim.nasser@flowup.co', employeeCode: 'HR-EMP-0024', avatar: 'KN', department: 'd1' },
+  { id: 'u4', name: 'أحمد علي', nameEn: 'Ahmed Ali', role: 'designer', email: 'ahmed.ali@flowup.co', employeeCode: 'HR-EMP-0023', avatar: 'AA', department: 'd1', subDepartmentIds: ['sd_design', 'sd_review'] },
+  { id: 'u5', name: 'كريم ناصر', nameEn: 'Karim Nasser', role: 'designer', email: 'karim.nasser@flowup.co', employeeCode: 'HR-EMP-0024', avatar: 'KN', department: 'd1', subDepartmentIds: ['sd_design'] },
   { id: 'u6', name: 'ندى سامي', nameEn: 'Nada Sami', role: 'scientific_supervisor', email: 'nada.sami@flowup.co', employeeCode: 'HR-EMP-0007', avatar: 'NS', department: 'd2' },
 ];
 
@@ -132,7 +152,13 @@ export const mockEmployeeCodes: string[] = [
 ];
 
 export const departments: Department[] = [
-  { id: 'd1', name: 'قسم التصميم', nameEn: 'Design Department', code: 'DESIGN', description: 'مسؤول عن تصميم المواد التعليمية', descriptionEn: 'Responsible for educational material design', managerId: 'u2', memberCount: 5, active: true },
+  { id: 'd1', name: 'قسم التصميم', nameEn: 'Design Department', code: 'DESIGN', description: 'مسؤول عن تصميم المواد التعليمية', descriptionEn: 'Responsible for educational material design', managerId: 'u2', memberCount: 5, active: true,
+    subDepartments: [
+      { id: 'sd_design', name: 'التصميم', nameEn: 'Design' },
+      { id: 'sd_draw', name: 'الرسم', nameEn: 'Drawing' },
+      { id: 'sd_review', name: 'التدقيق', nameEn: 'Review' },
+      { id: 'sd_write', name: 'الكتابة', nameEn: 'Writing' },
+    ] },
   { id: 'd2', name: 'قسم الحسابات', nameEn: 'Accounts Department', code: 'ACCT', description: 'إدارة الحسابات والمالية', descriptionEn: 'Finance and accounting management', managerId: 'u1', memberCount: 3, active: true },
   { id: 'd3', name: 'قسم اللوجستيات', nameEn: 'Logistics Department', code: 'LOG', description: 'الشحن والتوزيع والعمليات', descriptionEn: 'Shipping, distribution and operations', managerId: 'u1', memberCount: 4, active: true },
   { id: 'd4', name: 'الميديا والسوشيال', nameEn: 'Media & Social', code: 'MEDIA', description: 'إدارة وسائل التواصل الاجتماعي', descriptionEn: 'Social media management', managerId: 'u1', memberCount: 2, active: true },
@@ -198,13 +224,13 @@ export const messages: Message[] = [
   { id: 'm17', roomId: 'r2', senderId: 'u6', type: 'text', text: 'محتاج تعديل في صفحة 12، العنوان يكون أوضح.', textEn: 'Need revision on page 12, the title should be clearer.', taskId: 't2', timestamp: hoursAgo(3), isRead: false },
 
   // Subject-chat messages — show inside the subject chat AND inside the designer's read-only feed.
-  { id: 'sm1', roomId: 'asg_s1_u4', senderId: 'u3', type: 'text', text: 'أهلاً أحمد، جاهزين نبدأ في درس الحركة؟', textEn: 'Hi Ahmed, ready to start the motion lesson?', timestamp: hoursAgo(7), isRead: true },
-  { id: 'sm2', roomId: 'asg_s1_u4', senderId: 'u4', type: 'text', text: 'تمام يا دكتورة، هبدأ دلوقتي.', textEn: 'Sure, starting now.', timestamp: hoursAgo(6), isRead: true },
-  { id: 'sm3', roomId: 'asg_s1_u4', senderId: 'u4', type: 'submission', text: 'تم رفع النسخة 1 للمراجعة', textEn: 'Version 1 submitted for review', timestamp: hoursAgo(5), isRead: true },
-  { id: 'sm4', roomId: 'asg_s3_u4', senderId: 'u2', type: 'text', text: 'محتاجين نخلّص غلاف الفيزياء الأسبوع ده.', textEn: 'We need to finish the physics cover this week.', timestamp: hoursAgo(4), isRead: true },
-  { id: 'sm5', roomId: 'asg_s3_u4', senderId: 'u2', type: 'revision', text: 'لون العنوان غامق شوية، فتّحه درجة.', textEn: 'The title color is a bit dark, lighten it a notch.', timestamp: hoursAgo(3), isRead: true },
-  { id: 'sm6', roomId: 'asg_s4_u4', senderId: 'u3', type: 'text', text: 'راجعت شرح الدعامة، شغل ممتاز.', textEn: 'Reviewed the support lesson, excellent work.', timestamp: hoursAgo(2), isRead: true },
-  { id: 'sm7', roomId: 'asg_s1_u5', senderId: 'u3', type: 'text', text: 'كريم، فيه ملاحظة بسيطة على صفحة 3.', textEn: 'Karim, a small note on page 3.', timestamp: hoursAgo(3), isRead: true },
+  { id: 'sm1', roomId: 'asg_s1_u4_sd_design', senderId: 'u3', type: 'text', text: 'أهلاً أحمد، جاهزين نبدأ في درس الحركة؟', textEn: 'Hi Ahmed, ready to start the motion lesson?', timestamp: hoursAgo(7), isRead: true },
+  { id: 'sm2', roomId: 'asg_s1_u4_sd_design', senderId: 'u4', type: 'text', text: 'تمام يا دكتورة، هبدأ دلوقتي.', textEn: 'Sure, starting now.', timestamp: hoursAgo(6), isRead: true },
+  { id: 'sm3', roomId: 'asg_s1_u4_sd_design', senderId: 'u4', type: 'submission', text: 'تم رفع النسخة 1 للمراجعة', textEn: 'Version 1 submitted for review', timestamp: hoursAgo(5), isRead: true },
+  { id: 'sm4', roomId: 'asg_s3_u4_sd_design', senderId: 'u2', type: 'text', text: 'محتاجين نخلّص غلاف الفيزياء الأسبوع ده.', textEn: 'We need to finish the physics cover this week.', timestamp: hoursAgo(4), isRead: true },
+  { id: 'sm5', roomId: 'asg_s3_u4_sd_design', senderId: 'u2', type: 'revision', text: 'لون العنوان غامق شوية، فتّحه درجة.', textEn: 'The title color is a bit dark, lighten it a notch.', timestamp: hoursAgo(3), isRead: true },
+  { id: 'sm6', roomId: 'asg_s4_u4_sd_design', senderId: 'u3', type: 'text', text: 'راجعت شرح الدعامة، شغل ممتاز.', textEn: 'Reviewed the support lesson, excellent work.', timestamp: hoursAgo(2), isRead: true },
+  { id: 'sm7', roomId: 'asg_s1_u5_sd_design', senderId: 'u3', type: 'text', text: 'كريم، فيه ملاحظة بسيطة على صفحة 3.', textEn: 'Karim, a small note on page 3.', timestamp: hoursAgo(3), isRead: true },
 ];
 
 export const auditLogs: AuditLog[] = [
@@ -257,64 +283,109 @@ export const mockProjects: string[] = [
 // Build the (designer × subject) assignment chats. Each assignment is ONE chat/room.
 // Participants: the designer + the subject's scientific supervisor (matched by employeeCode)
 // + all design supervisors + managers (oversight). Derived live from subjects + users.
-export function buildAssignmentRooms(subjectList: Subject[], userList: User[]): Room[] {
+export function buildAssignmentRooms(subjectList: Subject[], userList: User[], departmentList: Department[]): Room[] {
   const supervisorIds = userList.filter(u => u.role === 'design_supervisor' || u.role === 'manager').map(u => u.id);
+  // Subjects belong to the Design dept (d1) for now; its stages drive one chat per stage.
+  const stages = departmentList.find(d => d.id === 'd1')?.subDepartments ?? [];
+  const mainStageId = stages[0]?.id;
   const out: Room[] = [];
   for (const s of subjectList) {
     const sci = userList.find(u => u.employeeCode === s.scientificSupervisorCode);
     for (const designerId of s.designerIds) {
+      const designer = userList.find(u => u.id === designerId);
       const participantIds = Array.from(new Set([designerId, ...(sci ? [sci.id] : []), ...supervisorIds]));
+      // A designer only gets chats for the stages they're assigned to (default: the main stage).
+      let designerStages: (SubDepartment | null)[];
+      if (!stages.length) {
+        designerStages = [null];
+      } else {
+        const ids = designer?.subDepartmentIds?.length ? designer.subDepartmentIds : (mainStageId ? [mainStageId] : []);
+        designerStages = stages.filter(st => ids.includes(st.id));
+        if (!designerStages.length) designerStages = stages.filter(st => st.id === mainStageId);
+      }
+      for (const stage of designerStages) {
+        out.push({
+          id: stage ? `asg_${s.id}_${designerId}_${stage.id}` : `asg_${s.id}_${designerId}`,
+          name: s.name,
+          nameEn: s.name,
+          departmentId: 'd1',
+          type: 'subject',
+          subjectId: s.id,
+          designerId,
+          subDepartmentId: stage?.id,
+          participantIds,
+          lastMessage: '',
+          lastMessageEn: '',
+          lastMessageTime: now,
+          unreadCount: 0,
+          activeTaskCount: 0,
+          isActive: s.active,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+// One read-only "feed" group per (designer × stage they work in) — pinned at the top of
+// THEIR list. It aggregates every message from that designer's subject chats IN that stage.
+export function buildFeedRooms(userList: User[], departmentList: Department[]): Room[] {
+  const out: Room[] = [];
+  for (const designer of userList.filter(u => u.role === 'designer')) {
+    const deptStages = departmentList.find(d => d.id === designer.department)?.subDepartments ?? [];
+    const myStages = deptStages.filter(st => (designer.subDepartmentIds ?? []).includes(st.id));
+    const stageList: (SubDepartment | null)[] = myStages.length ? myStages : (deptStages[0] ? [deptStages[0]] : [null]);
+    for (const stage of stageList) {
       out.push({
-        id: `asg_${s.id}_${designerId}`,
-        name: s.name,
-        nameEn: s.name,
-        departmentId: 'd1',
-        type: 'subject',
-        subjectId: s.id,
-        designerId,
-        participantIds,
+        id: stage ? `feed_${designer.id}_${stage.id}` : `feed_${designer.id}`,
+        name: stage ? `جروب ${stage.name} - ${designer.name}` : `جروب التصميم - ${designer.name}`,
+        nameEn: stage ? `${stage.nameEn} Group - ${designer.nameEn}` : `Design Group - ${designer.nameEn}`,
+        departmentId: designer.department,
+        type: 'feed' as const,
+        designerId: designer.id,
+        subDepartmentId: stage?.id,
+        participantIds: [designer.id],
         lastMessage: '',
         lastMessageEn: '',
         lastMessageTime: now,
         unreadCount: 0,
         activeTaskCount: 0,
-        isActive: s.active,
+        isActive: true,
+      });
+    }
+    // When the designer works in more than one stage, add the "التفاعل" feed that aggregates
+    // every stage (no subDepartmentId) — shown when the stage filter is on "الكل".
+    if (myStages.length > 1) {
+      out.push({
+        id: `feed_${designer.id}_all`,
+        name: 'التفاعل',
+        nameEn: 'Activity',
+        departmentId: designer.department,
+        type: 'feed' as const,
+        designerId: designer.id,
+        participantIds: [designer.id],
+        lastMessage: '',
+        lastMessageEn: '',
+        lastMessageTime: now,
+        unreadCount: 0,
+        activeTaskCount: 0,
+        isActive: true,
       });
     }
   }
   return out;
 }
 
-// One read-only "feed" group per designer — pinned at the top of THEIR list only.
-// It aggregates every message from all of that designer's subject chats; nobody can write in it.
-export function buildFeedRooms(userList: User[]): Room[] {
-  return userList
-    .filter(u => u.role === 'designer')
-    .map(designer => ({
-      id: `feed_${designer.id}`,
-      name: `جروب التصميم - ${designer.name}`,
-      nameEn: `Design Group - ${designer.nameEn}`,
-      departmentId: designer.department,
-      type: 'feed' as const,
-      designerId: designer.id,
-      participantIds: [designer.id],
-      lastMessage: '',
-      lastMessageEn: '',
-      lastMessageTime: now,
-      unreadCount: 0,
-      activeTaskCount: 0,
-      isActive: true,
-    }));
-}
-
-// "By designer" view for a scientific supervisor: ONE merged chat per designer that
-// aggregates ALL of the supervisor's subjects that designer works on. Viewer-dependent —
-// only built for a scientific_supervisor, scoped to the subjects they own (by employeeCode).
-// The supervisor must pick which subject a message belongs to before sending (handled in ChatPage).
-export function buildSupervisorMergeRooms(viewer: User, subjectList: Subject[], userList: User[]): Room[] {
+// "By designer" view for a scientific supervisor: one merged chat per (designer × STAGE),
+// aggregating all of the supervisor's subjects that designer works on IN that stage. So the
+// stage filter only surfaces designers who actually do that stage, and the chat shows only
+// that stage's messages. Viewer-dependent — only built for a scientific_supervisor.
+export function buildSupervisorMergeRooms(viewer: User, subjectList: Subject[], userList: User[], departmentList: Department[]): Room[] {
   if (viewer.role !== 'scientific_supervisor') return [];
   const supervisorIds = userList.filter(u => u.role === 'design_supervisor' || u.role === 'manager').map(u => u.id);
   const mySubjects = subjectList.filter(s => s.scientificSupervisorCode === viewer.employeeCode);
+  const stages = departmentList.find(d => d.id === 'd1')?.subDepartments ?? [];
+  const mainStageId = stages[0]?.id;
 
   // designerId -> the subjects (of this supervisor) they work on
   const byDesigner = new Map<string, string[]>();
@@ -329,22 +400,28 @@ export function buildSupervisorMergeRooms(viewer: User, subjectList: Subject[], 
   const out: Room[] = [];
   for (const [designerId, subjectIds] of byDesigner) {
     const designer = userList.find(u => u.id === designerId);
-    out.push({
-      id: `smrg_${viewer.id}_${designerId}`,
-      name: designer ? designer.name : '',
-      nameEn: designer ? designer.nameEn : '',
-      departmentId: 'd1',
-      type: 'subject_merge',
-      designerId,
-      subjectIds,
-      participantIds: Array.from(new Set([viewer.id, designerId, ...supervisorIds])),
-      lastMessage: '',
-      lastMessageEn: '',
-      lastMessageTime: now,
-      unreadCount: 0,
-      activeTaskCount: 0,
-      isActive: true,
-    });
+    // Only the stages this designer actually works in (default: the main stage).
+    const ids = designer?.subDepartmentIds?.length ? designer.subDepartmentIds : (mainStageId ? [mainStageId] : []);
+    const designerStages: (SubDepartment | null)[] = stages.length ? stages.filter(st => ids.includes(st.id)) : [null];
+    for (const stage of designerStages) {
+      out.push({
+        id: stage ? `smrg_${viewer.id}_${designerId}_${stage.id}` : `smrg_${viewer.id}_${designerId}`,
+        name: designer ? designer.name : '',
+        nameEn: designer ? designer.nameEn : '',
+        departmentId: 'd1',
+        type: 'subject_merge',
+        designerId,
+        subjectIds,
+        subDepartmentId: stage?.id,
+        participantIds: Array.from(new Set([viewer.id, designerId, ...supervisorIds])),
+        lastMessage: '',
+        lastMessageEn: '',
+        lastMessageTime: now,
+        unreadCount: 0,
+        activeTaskCount: 0,
+        isActive: true,
+      });
+    }
   }
   return out;
 }
@@ -360,27 +437,35 @@ export function formatTime12(date: Date, lang: 'ar' | 'en'): string {
   return `${h}:${mm} ${suffix}`;
 }
 
-// Per-role display name for a chat:
-//  - the designer sees the subject ("تصميم <المادة>")
-//  - the scientific supervisor sees "designer · تصميم subject" (subject disambiguates same-designer rooms)
+// Per-role display name for a chat. The stage (sub-department) prefixes the subject name
+// so e.g. the التدقيق-stage chat reads "تدقيق <المادة>" instead of "تصميم <المادة>".
+//  - the designer sees "<stage> <المادة>"
+//  - the scientific supervisor sees "designer · <stage> subject"
 //  - manager / design supervisor see "designer · subject"
 //  - direct chats show the OTHER participant's name
-export function getRoomDisplayName(room: Room, viewer: User, lang: 'ar' | 'en', userList: User[], subjectList: Subject[]): string {
-  // Merged "by designer" room — always the designer's name (it spans several subjects).
+export function getRoomDisplayName(room: Room, viewer: User, lang: 'ar' | 'en', userList: User[], subjectList: Subject[], departmentList: Department[] = []): string {
+  // Merged "by designer" room — the designer's name, suffixed with the stage it's scoped to.
   if (room.type === 'subject_merge' && room.designerId) {
     const designer = userList.find(u => u.id === room.designerId);
-    return designer ? (lang === 'ar' ? designer.name : designer.nameEn) : room.name;
+    const dname = designer ? (lang === 'ar' ? designer.name : designer.nameEn) : room.name;
+    const stage = departmentList.find(d => d.id === room.departmentId)?.subDepartments?.find(sd => sd.id === room.subDepartmentId);
+    if (stage) return lang === 'ar' ? `${dname} · ${stage.name.replace(/^ال/, '')}` : `${dname} · ${stage.nameEn}`;
+    return dname;
   }
   if (room.type === 'subject' && room.subjectId && room.designerId) {
     const subject = subjectList.find(s => s.id === room.subjectId);
     const designer = userList.find(u => u.id === room.designerId);
     const subjName = subject ? subject.name : room.name;
     const desName = designer ? (lang === 'ar' ? designer.name : designer.nameEn) : '';
+    // Stage prefix (Arabic strips the leading "ال": "التدقيق" → "تدقيق" to match "تصميم …").
+    const stage = departmentList.find(d => d.id === room.departmentId)?.subDepartments?.find(sd => sd.id === room.subDepartmentId);
+    const stageAr = stage ? stage.name.replace(/^ال/, '') : 'تصميم';
+    const stageEn = stage ? stage.nameEn : 'Design';
     if (viewer.id === room.designerId) {
-      return lang === 'ar' ? `تصميم ${subjName}` : `Design — ${subjName}`;
+      return lang === 'ar' ? `${stageAr} ${subjName}` : `${stageEn} — ${subjName}`;
     }
     if (viewer.role === 'scientific_supervisor') {
-      return lang === 'ar' ? `${desName} · تصميم ${subjName}` : `${desName} · Design — ${subjName}`;
+      return lang === 'ar' ? `${desName} · ${stageAr} ${subjName}` : `${desName} · ${stageEn} — ${subjName}`;
     }
     return `${desName} · ${subjName}`;
   }

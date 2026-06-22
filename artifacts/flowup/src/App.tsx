@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Switch, Route, Router as WouterRouter } from 'wouter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
@@ -30,10 +31,11 @@ function Router() {
 }
 
 function AppShell() {
+  const [navExpanded, setNavExpanded] = useState(false);
   return (
     <div className="min-h-screen bg-background relative">
-      <FloatingNav />
-      <div className="pb-4 h-screen overflow-hidden">
+      <FloatingNav expanded={navExpanded} onToggle={() => setNavExpanded(v => !v)} />
+      <div className={`${navExpanded ? 'ps-52' : 'ps-16'} pb-4 h-screen overflow-hidden transition-all duration-200`}>
         <Router />
       </div>
       <RoleSwitcher />

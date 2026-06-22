@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Layers, Check, BookMarked, Plus, Pin, LayoutGrid, BookCopy, User } from 'lucide-react';
+import { Search, Layers, Check, BookMarked, Plus, Pin, LayoutGrid, BookCopy, User, Folders } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useApp } from '@/contexts/AppContext';
 import { getTranslations } from '@/i18n/translations';
@@ -15,6 +15,9 @@ interface RoomListProps {
 }
 
 const avatarColors = ['bg-primary', 'bg-secondary', 'bg-green-500', 'bg-amber-500', 'bg-rose-500', 'bg-purple-600'];
+
+// Dot colors for the work-stage (sub-department) filter, picked by index.
+const STAGE_DOTS = ['#8b5cf6', '#0ea5e9', '#16a34a', '#f59e0b', '#ef4444', '#6366f1'];
 
 function formatRelativeTime(date: Date, lang: string) {
   const diffMs = Date.now() - date.getTime();
@@ -32,7 +35,7 @@ function formatRelativeTime(date: Date, lang: string) {
 }
 
 export function RoomList({ onRoomSelect }: RoomListProps) {
-  const { lang, currentUser, currentRole, allRooms, allTasks, allMessages, allUsers, allSubjects, allDepartments, selectedRoomId, setSelectedRoomId, setChatSearch, setJumpMessageId, sciViewMode, setSciViewMode, startDirectChat } = useApp();
+  const { lang, currentUser, currentRole, allRooms, allTasks, allMessages, allUsers, allSubjects, allDepartments, selectedRoomId, setSelectedRoomId, setChatSearch, setJumpMessageId, sciViewMode, setSciViewMode, roomFiltersNonce, startDirectChat } = useApp();
   const tr = getTranslations(lang);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -41,9 +44,13 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
   const [deptOpen, setDeptOpen] = useState(false);
   const [subjOpen, setSubjOpen] = useState(false);
   const [privOpen, setPrivOpen] = useState(false);
+  // Work-stage (sub-department) filter — null means the main (first) stage; 'all' shows every stage.
+  const [stagesOpen, setStagesOpen] = useState(false);
+  const [selectedSubDeptId, setSelectedSubDeptId] = useState<string | null>(null);
   const deptRef = useRef<HTMLDivElement>(null);
   const subjRef = useRef<HTMLDivElement>(null);
   const privRef = useRef<HTMLDivElement>(null);
+  const stagesRef = useRef<HTMLDivElement>(null);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -52,6 +59,7 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
       if (deptRef.current && !deptRef.current.contains(t)) setDeptOpen(false);
       if (subjRef.current && !subjRef.current.contains(t)) setSubjOpen(false);
       if (privRef.current && !privRef.current.contains(t)) setPrivOpen(false);
+      if (stagesRef.current && !stagesRef.current.contains(t)) setStagesOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -71,6 +79,25 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
 
   const activeDepts = allDepartments.filter(d => d.active);
   const selectedDept = activeDepts.find(d => d.id === selectedDeptId);
+
+  // Work stages (sub-departments) that drive the folder filter.
+  //  - designer: only the stages they were assigned to (so the filter appears only when they
+  //    do more than one thing, e.g. تصميم + تدقيق).
+  //  - supervisor / manager: every stage of their department.
+  const deptStages = allDepartments.find(d => d.id === currentUser.department)?.subDepartments ?? [];
+  const stages = isDesigner
+    ? deptStages.filter(st => (currentUser.subDepartmentIds ?? []).includes(st.id))
+    : deptStages;
+  const mainStageId = stages[0]?.id ?? null;
+  // Which stage the room list is scoped to: 'all' or null = every stage; otherwise a specific stage.
+  // While searching, the default (no explicit folder) spans ALL stages so a search isn't silently
+  // limited to the stage you happened to be standing in — unless you explicitly picked a folder.
+  const searching = search.trim().length > 0;
+  const validSpecific = stages.some(s => s.id === selectedSubDeptId);
+  const activeStageId =
+    selectedSubDeptId === 'all' ? null
+    : validSpecific ? selectedSubDeptId
+    : (searching ? null : mainStageId);
 
   // Subjects this scientific supervisor actually works on: matched by ERPNext code AND
   // having a live subject chat (a designer assigned). A subject with no chat doesn't count,
@@ -108,10 +135,20 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser.id, selectedRoomId, myRooms.length]);
 
+  // Reset the stage filter back to the main stage when switching user/role.
+  useEffect(() => { setSelectedSubDeptId(null); }, [currentUser.id]);
+
+  // "Go to source" (and similar) asks to clear every filter so the target room isn't hidden.
+  useEffect(() => {
+    if (roomFiltersNonce === 0) return;
+    setSearch(''); setSelectedDeptId(null); setSelectedSubjectId(null); setSelectedSubDeptId(null); setFilter('all');
+    setDeptOpen(false); setSubjOpen(false); setStagesOpen(false);
+  }, [roomFiltersNonce]);
+
   // Search matches the room name OR any message content inside it (both languages),
   // plus the seed last-message preview for rooms that have no message objects yet.
   const roomMatchesSearch = (room: Room, q: string) => {
-    const display = getRoomDisplayName(room, currentUser, lang, allUsers, allSubjects);
+    const display = getRoomDisplayName(room, currentUser, lang, allUsers, allSubjects, allDepartments);
     if (display.toLowerCase().includes(q)) return true;
     if (room.lastMessage?.toLowerCase().includes(q) || room.lastMessageEn?.toLowerCase().includes(q)) return true;
     return allMessages.some(m => m.roomId === room.id && (
@@ -123,22 +160,50 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
     const matchSearch = !search || roomMatchesSearch(room, search.toLowerCase());
     const matchDept = !selectedDeptId || room.departmentId === selectedDeptId;
     const matchSubject = !selectedSubjectId || room.subjectId === selectedSubjectId;
+    // Stage filter applies to subject chats and the "by designer" merged chats; others pass.
+    const stageScoped = room.type === 'subject' || room.type === 'subject_merge';
+    const matchStage = !stageScoped || !activeStageId || !room.subDepartmentId || room.subDepartmentId === activeStageId;
     const matchFilter =
       filter === 'all' ? true :
       filter === 'unread' ? room.unreadCount > 0 :
       filter === 'active' ? room.activeTaskCount > 0 :
       filter === 'overdue' ? roomIsOverdue(room.id) : true;
-    return matchSearch && matchDept && matchSubject && matchFilter;
+    return matchSearch && matchDept && matchSubject && matchStage && matchFilter;
   });
 
+  // Most-recent message time in a room (falls back to the seed time), used to sort by recency.
+  const roomLastTime = (room: Room) => {
+    const ids = room.type === 'subject_merge'
+      ? new Set(allRooms.filter(r => r.type === 'subject' && r.designerId === room.designerId && r.subjectId && room.subjectIds?.includes(r.subjectId)).map(r => r.id))
+      : new Set([room.id]);
+    let t = 0;
+    for (const m of allMessages) { if (ids.has(m.roomId)) { const ts = m.timestamp.getTime(); if (ts > t) t = ts; } }
+    return t || room.lastMessageTime.getTime();
+  };
+
+  // When showing every stage at once ("الكل"), order the subject chats newest-first.
+  const subjectRooms = filteredRooms.filter(r => r.type === 'subject' || r.type === 'subject_merge');
+  const orderedSubjectRooms = selectedSubDeptId === 'all'
+    ? [...subjectRooms].sort((a, b) => roomLastTime(b) - roomLastTime(a))
+    : subjectRooms;
+
+  // In "الكل" mode the list mixes stages, so the section header reflects subjects + sub-departments.
+  const subjectsLabel = selectedSubDeptId === 'all'
+    ? (lang === 'ar' ? 'المواد - الأقسام الفرعية' : 'Subjects - Sub-departments')
+    : tr.subjects;
+
   const sections = [
-    { key: 'subjects', label: tr.subjects, rooms: filteredRooms.filter(r => r.type === 'subject' || r.type === 'subject_merge') },
+    { key: 'subjects', label: subjectsLabel, rooms: orderedSubjectRooms },
     { key: 'groups', label: tr.sectionGroups, rooms: filteredRooms.filter(r => r.type === 'group' || r.type === 'dept_room' || r.type === 'task_room') },
     { key: 'direct', label: tr.sectionPrivate, rooms: filteredRooms.filter(r => r.type === 'direct') },
   ].filter(s => s.rooms.length > 0);
 
-  // The designer's read-only aggregate feed — pinned at the very top, always.
-  const feedRoom = myRooms.find(r => r.type === 'feed');
+  // The designer's read-only aggregate feed — pinned at the very top.
+  //  - a specific stage → that stage's feed.
+  //  - "الكل" (activeStageId null) → the "التفاعل" feed that aggregates every stage.
+  const feedRoom = activeStageId === null
+    ? (myRooms.find(r => r.type === 'feed' && !r.subDepartmentId) ?? myRooms.find(r => r.type === 'feed'))
+    : (myRooms.find(r => r.type === 'feed' && r.subDepartmentId === activeStageId) ?? myRooms.find(r => r.type === 'feed'));
 
   // Opening a room carries the current search term into the chat (highlight + navigate),
   // and jumps to the specific matched message when the result was clicked from search.
@@ -238,7 +303,8 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
                 : (lang === 'ar' ? 'العرض: حسب المصمم — اضغط للعرض حسب المادة' : 'View: by designer — tap for by subject')}
               className="flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-xl bg-muted/50 text-muted-foreground border border-transparent hover:bg-muted hover:text-foreground transition-colors duration-150"
             >
-              {sciViewMode === 'subject' ? <BookCopy size={15} /> : <User size={15} />}
+              {/* Icon shows the view you'll switch TO on tap (not the current one) */}
+              {sciViewMode === 'subject' ? <User size={15} /> : <BookCopy size={15} />}
             </motion.button>
           )}
 
@@ -311,7 +377,61 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
       </div>
 
       {/* Status filters */}
-      <div className="flex gap-1 px-3 pb-2">
+      <div className="flex items-center gap-1 px-3 pb-2">
+        {/* Work-stage (sub-department) filter — folder icon at the very start (right in RTL).
+            Shows only when there's more than one stage to switch between. */}
+        {stages.length > 1 && (
+          <div ref={stagesRef} className="relative flex-shrink-0 me-1">
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setStagesOpen(v => !v)}
+              data-testid="stages-btn"
+              title={lang === 'ar' ? 'المراحل' : 'Stages'}
+              className={`flex items-center gap-1.5 h-7 px-2 rounded-lg text-xs font-medium transition-colors duration-150 border ${stagesOpen || selectedSubDeptId ? 'bg-primary/10 text-primary border-primary/30' : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground'}`}
+            >
+              <Folders size={14} className="flex-shrink-0" />
+              <span className="max-w-[64px] truncate">
+                {activeStageId === null
+                  ? (lang === 'ar' ? 'الكل' : 'All')
+                  : (() => { const st = stages.find(s => s.id === activeStageId); return st ? (lang === 'ar' ? st.name : st.nameEn) : ''; })()}
+              </span>
+            </motion.button>
+            <AnimatePresence>
+              {stagesOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute top-full mt-1 start-0 z-30 w-44 bg-card border border-border rounded-xl shadow-xl overflow-hidden p-1"
+                >
+                  <button
+                    onClick={() => { setSelectedSubDeptId('all'); setStagesOpen(false); }}
+                    data-testid="stage-all"
+                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors text-start ${selectedSubDeptId === 'all' ? 'bg-primary/10 text-primary font-medium' : 'text-foreground hover:bg-muted/70'}`}
+                  >
+                    <Layers size={14} className="flex-shrink-0" />
+                    {lang === 'ar' ? 'كل المراحل' : 'All stages'}
+                  </button>
+                  {stages.map((s, idx) => {
+                    const isActive = selectedSubDeptId !== 'all' && activeStageId === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => { setSelectedSubDeptId(s.id); setStagesOpen(false); }}
+                        data-testid={`stage-${s.id}`}
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors text-start ${isActive ? 'bg-primary/10 text-primary font-medium' : 'text-foreground hover:bg-muted/70'}`}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: STAGE_DOTS[idx % STAGE_DOTS.length] }} />
+                        {lang === 'ar' ? s.name : s.nameEn}
+                      </button>
+                    );
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
         {filters.map(f => (
           <motion.button
             key={f.key}
@@ -385,7 +505,7 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
               <div className="flex items-center gap-1.5">
                 <Pin size={11} className="text-secondary flex-shrink-0" />
                 <p className={`text-sm font-semibold truncate ${selectedRoomId === feedRoom.id ? 'text-secondary' : 'text-foreground'}`}>
-                  {getRoomDisplayName(feedRoom, currentUser, lang, allUsers, allSubjects)}
+                  {getRoomDisplayName(feedRoom, currentUser, lang, allUsers, allSubjects, allDepartments)}
                 </p>
               </div>
               <p className="text-xs text-muted-foreground truncate mt-0.5">{lang === 'ar' ? 'كل رسائل موادك — للقراءة فقط' : 'All your subjects — read-only'}</p>
@@ -423,16 +543,16 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
 }
 
 function RoomItem({ room, isSelected, onSelect, index, searchTerm }: { room: Room; isSelected: boolean; onSelect: (id: string, jumpMsgId?: string) => void; index: number; searchTerm: string }) {
-  const { lang, currentUser, allUsers, allSubjects, allTasks, allMessages } = useApp();
-  const displayName = getRoomDisplayName(room, currentUser, lang, allUsers, allSubjects);
+  const { lang, currentUser, allUsers, allSubjects, allTasks, allMessages, allDepartments, allRooms } = useApp();
+  const displayName = getRoomDisplayName(room, currentUser, lang, allUsers, allSubjects, allDepartments);
   const overdueCount = allTasks.filter(t => t.roomId === room.id && t.deadline < new Date() && !['approved', 'closed'].includes(t.status)).length;
 
   const subject = room.subjectId ? allSubjects.find(s => s.id === room.subjectId) : null;
 
   // A merged "by designer" room has no messages of its own — it aggregates the designer's
-  // subject chats, so match/preview against that set of room ids.
+  // subject chats for its stage, so match/preview against that exact set of room ids.
   const roomIds = room.type === 'subject_merge'
-    ? new Set((room.subjectIds ?? []).map(sid => `asg_${sid}_${room.designerId}`))
+    ? new Set(allRooms.filter(r => r.type === 'subject' && r.designerId === room.designerId && r.subjectId && room.subjectIds?.includes(r.subjectId) && (!room.subDepartmentId || r.subDepartmentId === room.subDepartmentId)).map(r => r.id))
     : new Set([room.id]);
 
   // Last activity for preview/time — derived from real messages, falling back to the seed

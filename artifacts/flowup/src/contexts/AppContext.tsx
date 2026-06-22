@@ -1,7 +1,7 @@
-import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { users, rooms, tasks, messages, auditLogs, departments, subjects, buildAssignmentRooms, buildFeedRooms, buildSupervisorMergeRooms } from '@/data/mockData';
-import type { User, UserRole, Room, Task, TaskStatus, Message, AuditLog, Department, MessageType, Subject } from '@/data/mockData';
+import type { User, UserRole, Room, Task, TaskStatus, Message, MessageStatus, AuditLog, Department, MessageType, Subject } from '@/data/mockData';
 import type { Lang } from '@/i18n/translations';
 
 interface AppContextType {
@@ -27,6 +27,9 @@ interface AppContextType {
   // or 'designer' (one merged chat per designer, must pick a subject before sending).
   sciViewMode: 'subject' | 'designer';
   setSciViewMode: (m: 'subject' | 'designer') => void;
+  // Bumped to ask the room list to clear ALL its local filters (search, dept, stage, status).
+  roomFiltersNonce: number;
+  clearRoomFilters: () => void;
 
   // Data
   allUsers: User[];
@@ -64,6 +67,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [chatSearch, setChatSearch] = useState<string>('');
   const [jumpMessageId, setJumpMessageId] = useState<string | null>(null);
   const [sciViewMode, setSciViewMode] = useState<'subject' | 'designer'>('subject');
+  const [roomFiltersNonce, setRoomFiltersNonce] = useState(0);
+  const clearRoomFilters = useCallback(() => setRoomFiltersNonce(n => n + 1), []);
 
   const [allUsers, setAllUsers] = useState<User[]>(users);
   const [baseRooms, setBaseRooms] = useState<Room[]>(rooms);
@@ -73,15 +78,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [allDepartments, setAllDepartments] = useState<Department[]>(departments);
   const [allSubjects, setAllSubjects] = useState<Subject[]>(subjects);
 
+  // Pending delivery-status timers (simulated send → read progression); cleared on unmount.
+  const deliveryTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => { deliveryTimers.current.forEach(clearTimeout); }, []);
+
   const currentUser = allUsers.find(u => u.id === currentUserId) || allUsers[3];
 
   // Subject-assignment chats (designer × subject) are derived live; base rooms hold groups/direct chats.
   // Feed rooms (one read-only aggregate per designer) come FIRST so they pin to the top.
-  const feedRooms = useMemo(() => buildFeedRooms(allUsers), [allUsers]);
-  const assignmentRooms = useMemo(() => buildAssignmentRooms(allSubjects, allUsers), [allSubjects, allUsers]);
+  const feedRooms = useMemo(() => buildFeedRooms(allUsers, allDepartments), [allUsers, allDepartments]);
+  const assignmentRooms = useMemo(() => buildAssignmentRooms(allSubjects, allUsers, allDepartments), [allSubjects, allUsers, allDepartments]);
   // Merged "by designer" rooms for the current scientific supervisor (one per designer).
-  const supervisorMergeRooms = useMemo(() => buildSupervisorMergeRooms(currentUser, allSubjects, allUsers), [currentUser, allSubjects, allUsers]);
-  const allRooms = useMemo(() => [...feedRooms, ...assignmentRooms, ...supervisorMergeRooms, ...baseRooms], [feedRooms, assignmentRooms, supervisorMergeRooms, baseRooms]);
+  const supervisorMergeRooms = useMemo(() => buildSupervisorMergeRooms(currentUser, allSubjects, allUsers, allDepartments), [currentUser, allSubjects, allUsers, allDepartments]);
+  // Auto-membership in group chats (groups, dept/task rooms, subject chats) — not personal
+  // feeds or 1-to-1 direct chats:
+  //  - the general manager is a member of EVERY group,
+  //  - a department supervisor is a member of every group within THEIR department.
+  const allRooms = useMemo(() => {
+    const rooms = [...feedRooms, ...assignmentRooms, ...supervisorMergeRooms, ...baseRooms];
+    const GROUP_TYPES = ['group', 'dept_room', 'task_room', 'subject'];
+    const managerIds = allUsers.filter(u => u.role === 'manager').map(u => u.id);
+    const deptSupervisors = allUsers.filter(u => u.role === 'design_supervisor');
+    return rooms.map(r => {
+      if (!GROUP_TYPES.includes(r.type)) return r;
+      const add = [...managerIds, ...deptSupervisors.filter(s => s.department === r.departmentId).map(s => s.id)];
+      return add.some(id => !r.participantIds.includes(id))
+        ? { ...r, participantIds: Array.from(new Set([...r.participantIds, ...add])) }
+        : r;
+    });
+  }, [feedRooms, assignmentRooms, supervisorMergeRooms, baseRooms, allUsers]);
 
   const setLang = useCallback((l: Lang) => {
     setLangState(l);
@@ -112,8 +137,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [isDark]);
 
   const sendMessage = useCallback((roomId: string, text: string, textEn: string, type: MessageType = 'text', taskId?: string) => {
+    const id = `m_${Date.now()}`;
     const msg: Message = {
-      id: `m_${Date.now()}`,
+      id,
       roomId,
       senderId: currentUserId,
       type,
@@ -122,8 +148,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       taskId,
       timestamp: new Date(),
       isRead: true,
+      deliveryStatus: 'sending',
     };
     setAllMessages(prev => [...prev, msg]);
+
+    // No backend → simulate the delivery → read progression on a timeline,
+    // so the ticks (clock → 1 gray → 2 gray → 2 blue) animate like a real chat app.
+    const advance = (status: MessageStatus) =>
+      setAllMessages(prev => prev.map(m => (m.id === id ? { ...m, deliveryStatus: status } : m)));
+    const timers = [
+      setTimeout(() => advance('sent'), 700),
+      setTimeout(() => advance('delivered'), 1800),
+      setTimeout(() => advance('read'), 3600),
+    ];
+    deliveryTimers.current.push(...timers);
   }, [currentUserId]);
 
   const updateTaskStatus = useCallback((taskId: string, status: TaskStatus) => {
@@ -229,6 +267,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setJumpMessageId,
       sciViewMode,
       setSciViewMode,
+      roomFiltersNonce,
+      clearRoomFilters,
       allUsers,
       allRooms,
       allTasks,

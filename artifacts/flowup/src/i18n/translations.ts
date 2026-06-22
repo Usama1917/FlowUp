@@ -48,6 +48,10 @@ const t = {
     uploadFile: 'رفع ملف',
     noMessages: 'لا توجد رسائل',
     noMessagesDesc: 'كن أول من يبدأ المحادثة',
+    msgSending: 'جاري الإرسال',
+    msgSent: 'تم الإرسال',
+    msgDelivered: 'تم التسليم',
+    msgRead: 'تمت المشاهدة',
     today: 'اليوم',
     yesterday: 'أمس',
 
@@ -338,6 +342,10 @@ const t = {
     uploadFile: 'Upload File',
     noMessages: 'No Messages',
     noMessagesDesc: 'Be the first to start the conversation',
+    msgSending: 'Sending',
+    msgSent: 'Sent',
+    msgDelivered: 'Delivered',
+    msgRead: 'Seen',
     today: 'Today',
     yesterday: 'Yesterday',
 
