@@ -187,10 +187,21 @@ export function RoomList({ onRoomSelect }: RoomListProps) {
     ? [...subjectRooms].sort((a, b) => roomLastTime(b) - roomLastTime(a))
     : subjectRooms;
 
-  // In "الكل" mode the list mixes stages, so the section header reflects subjects + sub-departments.
-  const subjectsLabel = selectedSubDeptId === 'all'
-    ? (lang === 'ar' ? 'المواد - الأقسام الفرعية' : 'Subjects - Sub-departments')
-    : tr.subjects;
+  // Section header for the chats list:
+  //  - "by designer" merge view → the people of the active stage (التصميم → المصممين, …)
+  //  - "الكل" mode → subjects + sub-departments
+  //  - otherwise → "المواد"
+  let subjectsLabel: string;
+  if (isSciSup && sciViewMode === 'designer') {
+    const st = activeStageId ? stages.find(s => s.id === activeStageId) : null;
+    subjectsLabel = st
+      ? (lang === 'ar' ? (st.memberLabel || st.name) : (st.memberLabelEn || st.nameEn))
+      : (lang === 'ar' ? 'الأشخاص' : 'People');
+  } else if (selectedSubDeptId === 'all') {
+    subjectsLabel = lang === 'ar' ? 'المواد - الأقسام الفرعية' : 'Subjects - Sub-departments';
+  } else {
+    subjectsLabel = tr.subjects;
+  }
 
   const sections = [
     { key: 'subjects', label: subjectsLabel, rooms: orderedSubjectRooms },

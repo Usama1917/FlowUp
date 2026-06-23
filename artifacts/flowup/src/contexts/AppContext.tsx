@@ -30,6 +30,8 @@ interface AppContextType {
   // Bumped to ask the room list to clear ALL its local filters (search, dept, stage, status).
   roomFiltersNonce: number;
   clearRoomFilters: () => void;
+  // Wipe all persisted data and reload back to the original seed.
+  resetData: () => void;
 
   // Data
   allUsers: User[];
@@ -58,6 +60,31 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | null>(null);
 
+// --- localStorage persistence: user-entered data (messages, members, subjects, …) survives refresh.
+// Bump DATA_VERSION whenever the seed SHAPE changes, to drop stale persisted data and re-seed.
+const DATA_VERSION = '1';
+const PK = {
+  users: 'flowup_users', rooms: 'flowup_rooms', messages: 'flowup_messages', tasks: 'flowup_tasks',
+  audit: 'flowup_audit', departments: 'flowup_departments', subjects: 'flowup_subjects',
+};
+if (typeof localStorage !== 'undefined' && localStorage.getItem('flowup_data_version') !== DATA_VERSION) {
+  Object.values(PK).forEach(k => localStorage.removeItem(k));
+  localStorage.setItem('flowup_data_version', DATA_VERSION);
+}
+function loadPersisted<T>(key: string, fallback: T[], revive?: (x: any) => T): T[] {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as any[];
+    return revive ? parsed.map(revive) : (parsed as T[]);
+  } catch { return fallback; }
+}
+// JSON has no Date type — revive the date fields back into Date objects on load.
+const reviveMessage = (m: any): Message => ({ ...m, timestamp: new Date(m.timestamp) });
+const reviveRoom = (r: any): Room => ({ ...r, lastMessageTime: new Date(r.lastMessageTime) });
+const reviveTask = (t: any): Task => ({ ...t, deadline: new Date(t.deadline), lastActivity: new Date(t.lastActivity), files: (t.files ?? []).map((f: any) => ({ ...f, uploadedAt: new Date(f.uploadedAt) })) });
+const reviveAudit = (a: any): AuditLog => ({ ...a, timestamp: new Date(a.timestamp) });
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem('flowup_lang') as Lang) || 'ar');
   const [isDark, setIsDarkState] = useState<boolean>(() => localStorage.getItem('flowup_dark') === 'true');
@@ -69,14 +96,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [sciViewMode, setSciViewMode] = useState<'subject' | 'designer'>('subject');
   const [roomFiltersNonce, setRoomFiltersNonce] = useState(0);
   const clearRoomFilters = useCallback(() => setRoomFiltersNonce(n => n + 1), []);
+  const resetData = useCallback(() => {
+    Object.values(PK).forEach(k => localStorage.removeItem(k));
+    window.location.reload();
+  }, []);
 
-  const [allUsers, setAllUsers] = useState<User[]>(users);
-  const [baseRooms, setBaseRooms] = useState<Room[]>(rooms);
-  const [allMessages, setAllMessages] = useState<Message[]>(messages);
-  const [allTasks, setAllTasks] = useState<Task[]>(tasks);
-  const [allAuditLogs, setAllAuditLogs] = useState<AuditLog[]>(auditLogs);
-  const [allDepartments, setAllDepartments] = useState<Department[]>(departments);
-  const [allSubjects, setAllSubjects] = useState<Subject[]>(subjects);
+  const [allUsers, setAllUsers] = useState<User[]>(() => loadPersisted(PK.users, users));
+  const [baseRooms, setBaseRooms] = useState<Room[]>(() => loadPersisted(PK.rooms, rooms, reviveRoom));
+  const [allMessages, setAllMessages] = useState<Message[]>(() => loadPersisted(PK.messages, messages, reviveMessage));
+  const [allTasks, setAllTasks] = useState<Task[]>(() => loadPersisted(PK.tasks, tasks, reviveTask));
+  const [allAuditLogs, setAllAuditLogs] = useState<AuditLog[]>(() => loadPersisted(PK.audit, auditLogs, reviveAudit));
+  const [allDepartments, setAllDepartments] = useState<Department[]>(() => loadPersisted(PK.departments, departments));
+  const [allSubjects, setAllSubjects] = useState<Subject[]>(() => loadPersisted(PK.subjects, subjects));
+
+  // Persist every slice back to localStorage whenever it changes.
+  useEffect(() => { localStorage.setItem(PK.users, JSON.stringify(allUsers)); }, [allUsers]);
+  useEffect(() => { localStorage.setItem(PK.rooms, JSON.stringify(baseRooms)); }, [baseRooms]);
+  useEffect(() => { localStorage.setItem(PK.messages, JSON.stringify(allMessages)); }, [allMessages]);
+  useEffect(() => { localStorage.setItem(PK.tasks, JSON.stringify(allTasks)); }, [allTasks]);
+  useEffect(() => { localStorage.setItem(PK.audit, JSON.stringify(allAuditLogs)); }, [allAuditLogs]);
+  useEffect(() => { localStorage.setItem(PK.departments, JSON.stringify(allDepartments)); }, [allDepartments]);
+  useEffect(() => { localStorage.setItem(PK.subjects, JSON.stringify(allSubjects)); }, [allSubjects]);
 
   // Pending delivery-status timers (simulated send → read progression); cleared on unmount.
   const deliveryTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -269,6 +309,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSciViewMode,
       roomFiltersNonce,
       clearRoomFilters,
+      resetData,
       allUsers,
       allRooms,
       allTasks,

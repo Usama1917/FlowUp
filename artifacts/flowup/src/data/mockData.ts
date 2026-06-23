@@ -18,6 +18,8 @@ export interface SubDepartment {
   id: string;
   name: string;
   nameEn: string;
+  memberLabel?: string;   // plural name of the people doing this stage (التصميم → المصممين)
+  memberLabelEn?: string;
 }
 
 export interface Department {
@@ -154,10 +156,10 @@ export const mockEmployeeCodes: string[] = [
 export const departments: Department[] = [
   { id: 'd1', name: 'قسم التصميم', nameEn: 'Design Department', code: 'DESIGN', description: 'مسؤول عن تصميم المواد التعليمية', descriptionEn: 'Responsible for educational material design', managerId: 'u2', memberCount: 5, active: true,
     subDepartments: [
-      { id: 'sd_design', name: 'التصميم', nameEn: 'Design' },
-      { id: 'sd_draw', name: 'الرسم', nameEn: 'Drawing' },
-      { id: 'sd_review', name: 'التدقيق', nameEn: 'Review' },
-      { id: 'sd_write', name: 'الكتابة', nameEn: 'Writing' },
+      { id: 'sd_design', name: 'التصميم', nameEn: 'Design', memberLabel: 'المصممين', memberLabelEn: 'Designers' },
+      { id: 'sd_draw', name: 'الرسم', nameEn: 'Drawing', memberLabel: 'الرسامين', memberLabelEn: 'Illustrators' },
+      { id: 'sd_review', name: 'التدقيق', nameEn: 'Review', memberLabel: 'المدققين', memberLabelEn: 'Reviewers' },
+      { id: 'sd_write', name: 'الكتابة', nameEn: 'Writing', memberLabel: 'الكتّاب', memberLabelEn: 'Writers' },
     ] },
   { id: 'd2', name: 'قسم الحسابات', nameEn: 'Accounts Department', code: 'ACCT', description: 'إدارة الحسابات والمالية', descriptionEn: 'Finance and accounting management', managerId: 'u1', memberCount: 3, active: true },
   { id: 'd3', name: 'قسم اللوجستيات', nameEn: 'Logistics Department', code: 'LOG', description: 'الشحن والتوزيع والعمليات', descriptionEn: 'Shipping, distribution and operations', managerId: 'u1', memberCount: 4, active: true },

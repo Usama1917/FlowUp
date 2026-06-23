@@ -18,8 +18,9 @@ const SUBJECT_COLORS = ['#16a34a', '#0ea5e9', '#8b5cf6', '#f59e0b', '#ef4444', '
 
 // Add / edit / remove the stages (sub-departments) of a department.
 function SubDeptEditor({ value, onChange, lang }: { value: SubDepartment[]; onChange: (v: SubDepartment[]) => void; lang: string }) {
-  // Arabic-first: the input edits the Arabic name and mirrors it to nameEn for new stages.
+  // Arabic-first: each input edits the Arabic value and mirrors it to the *En field for new stages.
   const rename = (id: string, name: string) => onChange(value.map(s => s.id === id ? { ...s, name, nameEn: name } : s));
+  const setMember = (id: string, label: string) => onChange(value.map(s => s.id === id ? { ...s, memberLabel: label, memberLabelEn: label } : s));
   const remove = (id: string) => onChange(value.filter(s => s.id !== id));
   const add = () => onChange([...value, { id: `sd_${Date.now()}_${value.length}`, name: '', nameEn: '' }]);
   return (
@@ -29,11 +30,18 @@ function SubDeptEditor({ value, onChange, lang }: { value: SubDepartment[]; onCh
           <Input
             value={s.name}
             onChange={e => rename(s.id, e.target.value)}
-            className="h-7 text-xs"
-            placeholder={lang === 'ar' ? 'اسم المرحلة (مثال: الرسم)' : 'Stage name'}
+            className="h-7 text-xs flex-1"
+            placeholder={lang === 'ar' ? 'اسم المرحلة (الرسم)' : 'Stage'}
             data-testid={`subdept-input-${s.id}`}
           />
-          <button type="button" onClick={() => remove(s.id)} className="p-1 text-muted-foreground hover:text-rose-500 transition-colors" data-testid={`subdept-remove-${s.id}`}>
+          <Input
+            value={s.memberLabel ?? ''}
+            onChange={e => setMember(s.id, e.target.value)}
+            className="h-7 text-xs flex-1"
+            placeholder={lang === 'ar' ? 'اسم الأشخاص (الرسامين)' : 'People (Illustrators)'}
+            data-testid={`subdept-member-${s.id}`}
+          />
+          <button type="button" onClick={() => remove(s.id)} className="p-1 text-muted-foreground hover:text-rose-500 transition-colors flex-shrink-0" data-testid={`subdept-remove-${s.id}`}>
             <X size={13} />
           </button>
         </div>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { SlidersHorizontal, Globe, Moon, MessageSquare, HardDrive, FileType, Activity, Building2 } from 'lucide-react';
+import { SlidersHorizontal, Globe, Moon, MessageSquare, HardDrive, FileType, Activity, Building2, RotateCcw } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { Lang } from '@/i18n/translations';
 
 export function SettingsPage() {
-  const { lang, setLang, isDark, setIsDark, allDepartments } = useApp();
+  const { lang, setLang, isDark, setIsDark, allDepartments, resetData } = useApp();
   const tr = getTranslations(lang);
   const { toast } = useToast();
 
@@ -175,6 +175,22 @@ export function SettingsPage() {
                 <option key={d.id} value={d.id}>{lang === 'ar' ? d.name : d.nameEn}</option>
               ))}
             </select>
+          </SettingRow>
+        </SettingSection>
+
+        {/* Data — persistence is automatic; this wipes it back to the original seed */}
+        <SettingSection icon={HardDrive} title={lang === 'ar' ? 'البيانات' : 'Data'}>
+          <SettingRow label={lang === 'ar' ? 'بياناتك بتتحفظ تلقائيًا وبتفضل بعد التحديث' : 'Your data is saved automatically and persists across refreshes'}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { if (window.confirm(lang === 'ar' ? 'هتتمسح كل البيانات وترجع للبداية. متأكد؟' : 'This wipes all data back to the seed. Sure?')) resetData(); }}
+              className="text-rose-600 border-rose-200 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+              data-testid="reset-data-btn"
+            >
+              <RotateCcw size={14} className="me-1.5" />
+              {lang === 'ar' ? 'إعادة تعيين البيانات' : 'Reset data'}
+            </Button>
           </SettingRow>
         </SettingSection>
       </div>
